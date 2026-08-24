@@ -16,7 +16,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends unzip \
     && rm -rf /var/lib/apt/lists/*
 RUN rm -rf /root/.cache/puppeteer \
-    && npx puppeteer browsers install chrome-headless-shell
+    && npx puppeteer browsers install chrome \
+    && node --input-type=module -e 'import puppeteer from "puppeteer"; import { access } from "node:fs/promises"; const path = await puppeteer.executablePath(); await access(path); console.log(`[Docker] Chrome validado em ${path}`);'
 
 COPY tsconfig.json ./
 COPY src ./src

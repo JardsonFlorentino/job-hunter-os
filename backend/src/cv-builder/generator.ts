@@ -6,8 +6,11 @@ export async function generatePDF(cvData: CvData): Promise<Buffer> {
   let browser: Browser | undefined;
 
   try {
+    const configuredPath = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
+    const executablePath = configuredPath || (await puppeteer.executablePath());
     browser = await puppeteer.launch({
       headless: true,
+      executablePath,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
