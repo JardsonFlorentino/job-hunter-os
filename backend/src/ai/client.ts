@@ -19,7 +19,13 @@ interface AiResponse { choices: Array<{ message: { content: string } }> }
 interface ProviderSettings { provider: AiProvider; endpoint: string; apiKey: string; model: string }
 
 export class AiProviderError extends Error {
-  constructor(readonly provider: AiProvider, readonly status: number, readonly retryAfterSeconds: number | null, message: string) {
+  constructor(
+    readonly provider: AiProvider,
+    readonly status: number,
+    readonly retryAfterSeconds: number | null,
+    message: string,
+    readonly failedGeneration: string | null = null,
+  ) {
     super(message);
     this.name = "AiProviderError";
   }
@@ -92,12 +98,25 @@ export async function callAi(prompt: string, systemPrompt?: string, options: { j
       if (!response.ok) {
         const errorBody = await response.text();
         let details = response.statusText;
+        let failedGeneration: string | null = null;
         try {
           const parsed: unknown = JSON.parse(errorBody);
-          if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === "string") details = parsed.error.message;
+          if (isRecord(parsed) && isRecord(parsed.error)) {
+            if (typeof parsed.error.message === "string") details = parsed.error.message;
+            if (typeof parsed.error.failed_generation === "string") {
+              const normalizedGeneration = parsed.error.failed_generation.trim();
+              failedGeneration = normalizedGeneration || null;
+            }
+          }
         } catch { /* corpo nao estruturado */ }
         const retryAfter = Number.parseFloat(response.headers.get("retry-after") ?? "");
-        throw new AiProviderError(settings.provider, response.status, Number.isFinite(retryAfter) ? retryAfter : null, `${settings.provider} HTTP ${response.status}: ${details}`);
+        throw new AiProviderError(
+          settings.provider,
+          response.status,
+          Number.isFinite(retryAfter) ? retryAfter : null,
+          `${settings.provider} HTTP ${response.status}: ${details}`,
+          failedGeneration,
+        );
       }
       const responseBody: unknown = await response.json();
       if (!isAiResponse(responseBody)) throw new Error(`${settings.provider} retornou resposta em formato invalido.`);
@@ -105,6 +124,17 @@ export async function callAi(prompt: string, systemPrompt?: string, options: { j
       if (!content) throw new Error(`${settings.provider} retornou resposta vazia.`);
       return content;
     } catch (error: unknown) {
+      if (
+        error instanceof AiProviderError
+        && error.status === 400
+        && options.json
+        && error.failedGeneration !== null
+      ) {
+        console.warn(
+          `[AI:${settings.provider}] JSON estruturado rejeitado pelo provedor; encaminhando a geracao parcial para validacao e reparo local.`,
+        );
+        return error.failedGeneration;
+      }
       if (error instanceof AiProviderError && error.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
         const waitMs = retryDelayMs(error, attempt);
         console.warn(`[AI:${settings.provider}] Limite temporario; nova tentativa ${attempt + 1}/${MAX_RATE_LIMIT_RETRIES} em ${Math.ceil(waitMs / 1_000)}s.`);

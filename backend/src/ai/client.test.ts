@@ -13,9 +13,20 @@ function aiResponse(content: string): Response {
   );
 }
 
-function providerError(status: number, retryAfter = "0"): Response {
+function providerError(
+  status: number,
+  retryAfter = "0",
+  failedGeneration?: string,
+): Response {
   return new Response(
-    JSON.stringify({ error: { message: "limite de teste" } }),
+    JSON.stringify({
+      error: {
+        message: "limite de teste",
+        ...(failedGeneration === undefined
+          ? {}
+          : { failed_generation: failedGeneration }),
+      },
+    }),
     {
       status,
       headers: {
@@ -61,6 +72,43 @@ describe("callAi", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(callAi("Analise")).rejects.toBeInstanceOf(AiProviderError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("encaminha failed_generation para o reparador de JSON", async () => {
+    const partialGeneration = '{"fit":true,"matchScore":70';
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(providerError(400, "0", partialGeneration));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(callAi("Analise", undefined, { json: true })).resolves.toBe(
+      partialGeneration,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("mantem falha segura quando o erro 400 nao contem geracao parcial", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(providerError(400));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(callAi("Analise", undefined, { json: true })).rejects.toMatchObject({
+      name: "AiProviderError",
+      status: 400,
+      failedGeneration: null,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("nao aproveita failed_generation fora de chamadas JSON", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(providerError(400, "0", '{"texto":"parcial"}'));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(callAi("Escreva um e-mail")).rejects.toBeInstanceOf(
+      AiProviderError,
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
