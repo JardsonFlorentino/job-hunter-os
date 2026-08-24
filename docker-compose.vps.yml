@@ -1,0 +1,90 @@
+name: job-hunter-vps
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?Defina POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [private]
+
+  migrate:
+    image: job-hunter-vps-backend:latest
+    restart: "no"
+    env_file: ["${VPS_ENV_FILE:-./deploy/.env.production}"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Defina DATABASE_URL}
+    command: ["npx", "prisma", "migrate", "deploy", "--schema=src/prisma/schema.prisma"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [private]
+
+  backend:
+    image: job-hunter-vps-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file: ["${VPS_ENV_FILE:-./deploy/.env.production}"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Defina DATABASE_URL}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.kill(1, 0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [private]
+
+  frontend:
+    image: job-hunter-vps-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Defina DATABASE_URL}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:?Defina AUTH_PASSWORD}
+      AUTH_SECRET: ${AUTH_SECRET:?Defina AUTH_SECRET}
+      AUTH_LOGIN_RATE_LIMIT: ${AUTH_LOGIN_RATE_LIMIT:-5}
+      API_READ_RATE_LIMIT: ${API_READ_RATE_LIMIT:-120}
+      API_WRITE_RATE_LIMIT: ${API_WRITE_RATE_LIMIT:-30}
+      TRUST_PROXY: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:3010:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks: [private]
+
+networks:
+  private:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: job-hunter-vps-postgres-data
