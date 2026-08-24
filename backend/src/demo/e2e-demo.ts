@@ -32,7 +32,7 @@ async function desktopJourney(context: BrowserContext): Promise<void> {
 
   await login(page);
   await expectText(page, "h1", "Olá");
-  await expectText(page, "main", "Robô em modo seguro");
+  await expectText(page, "main", "Robô operando com envios bloqueados");
 
   await page.getByRole("link", { name: "Vagas", exact: true }).click();
   await page.waitForURL("**/discover");

@@ -16,4 +16,7 @@ describe("parseJobFitAnalysis", () => {
   it.each([-1, 101, 70.5])("rejects invalid score %s", (matchScore) => expect(() => parseJobFitAnalysis(JSON.stringify({ ...valid, matchScore }))).toThrow("analise de fit invalida"));
   it("blocks auto-apply when description is insufficient", () => expect(() => parseJobFitAnalysis(JSON.stringify({ ...valid, descriptionSufficient: false }))).toThrow("analise de fit invalida"));
   it("requires fit to match the APPLY decision", () => expect(() => parseJobFitAnalysis(JSON.stringify({ ...valid, fit: false }))).toThrow("analise de fit invalida"));
+  it("blocks apply with unmet essential requirement", () => expect(() => parseJobFitAnalysis(JSON.stringify({ ...valid, essentialRequirements: [{ text: "React", met: false, evidence: null }] }))).toThrow("essentialRequirements"));
+  it("blocks apply with incompatible seniority", () => expect(() => parseJobFitAnalysis(JSON.stringify({ ...valid, scoreBreakdown: { ...valid.scoreBreakdown, seniority: 40 } }))).toThrow("scoreBreakdown.seniority"));
+  it("blocks apply with unconfirmed restrictions", () => expect(() => parseJobFitAnalysis(JSON.stringify({ ...valid, scoreBreakdown: { ...valid.scoreBreakdown, restrictions: 50 } }))).toThrow("scoreBreakdown.restrictions"));
 });

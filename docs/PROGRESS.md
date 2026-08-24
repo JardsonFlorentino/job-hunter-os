@@ -471,3 +471,56 @@ Riscos/Pendências:
 - Caddy como única entrada pública, HTTPS automático, cabeçalhos de segurança e sobrescrita dos cabeçalhos de IP encaminhados.
 - Endpoint público mínimo `/api/health` verifica a conectividade do frontend com o banco sem expor dados internos.
 - Pendência: executar o preflight com domínio e credenciais reais, além de validar backup/restauração antes do go-live.
+
+## 2026-08-24 - Validacao real da VPS e auditoria visual
+
+- Itens comprovados: deploy isolado, HTTPS, healthchecks, Groq, SMTP, IMAP, checkpoint por data/UID, retry 429, Chrome e PDF em memoria.
+- Validacoes: endpoint /api/health HTTP 200; containers saudaveis; 24 vagas GitHub e 10 LinkedIn por ciclo; SMTP verify e IMAP connect/logout sem acao externa; PDF canary com assinatura %PDF.
+- Seguranca: APPLICATION_MODE=PREPARE, kill switch ativo, envio externo desabilitado e limite diario zero; banco confirmou zero e-mails enviados.
+- Auditoria visual: Visao geral, Vagas, Pendencias, Competencias, Mensagens, Perfil e Materiais foram inspecionados com dados reais.
+- Bloqueadores: preview do PDF quebrado, Action Center sem acoes decisorias completas, materiais ausentes para canais manuais e metricas ambiguas.
+- Pendencias adicionais: fallback de JSON da Groq, elegibilidade/senioridade, LinkedIn profundo, extensao conectada a VPS, canario de envio e resposta, HSTS e E2E final.
+### 2026-08-24 - Preview autenticado e download de PDF
+
+- Causa raiz confirmada: o PDF protegido era carregado diretamente em `iframe`, mas `X-Frame-Options: DENY` bloqueava a renderização.
+- Correção segura: o frontend busca o PDF com a sessão da mesma origem e cria uma URL temporária em memória, preservando `DENY` global contra clickjacking.
+- A rota binária agora diferencia visualização e download (`?download=1`), informa tamanho, força MIME PDF e mantém cache privado desabilitado.
+- As telas de Materiais e Revisão receberam ações de download e abertura em nova aba, além de estados de carregamento e erro.
+- Validação local: lint aprovado, 4 testes aprovados e build Next.js de produção aprovado.
+- Pendente para concluir 19.7: publicar as alterações e confirmar visualmente preview e download autenticados na VPS.
+### 2026-08-24 - Decisões, materiais manuais e modo operacional
+
+- Action Center recebeu decisões auditáveis para aprovar, ignorar, adiar, solicitar regeneração, encaminhar para ação manual e confirmar candidatura manual já realizada.
+- Regeneração cria item interno deduplicado; o worker gera uma nova versão preservando o histórico.
+- Vagas REVISAR/APLICAR sem e-mail agora recebem CV visual, CV ATS e mensagem ao recrutador antes de chegar à fila humana.
+- A Visão geral diferencia vagas ativas, candidaturas preparadas e enviadas, além de refletir OBSERVE/PREPARE/AUTO_EMAIL, kill switch e permissão de e-mail reais.
+- Segurança preservada: nenhuma ação externa foi habilitada e decisões mutáveis exigem mesma origem e sessão autenticada.
+- Validação local: backend compilado e 78 testes aprovados; frontend com lint, 4 testes e build de produção aprovados.
+- Pendência: publicar e validar 19.7–19.10 no ambiente autenticado da VPS antes de marcar os itens como concluídos.
+### 2026-08-24 - IA, fontes públicas, extensão e operações
+
+- IA: regras estruturais impedem APLICAR com requisito essencial ausente, senioridade incompatível ou restrição/elegibilidade não confirmada; JSON inválido recebe no máximo uma tentativa de reparo.
+- LinkedIn: parser aceita JSON-LD aninhado, múltiplas seções, entidades HTML, seletores adicionais e metadados públicos como último fallback.
+- Fontes: Gupy e Indeed ganharam conector controlado para páginas públicas específicas com JobPosting JSON-LD; Greenhouse, Lever, Ashby, SmartRecruiters e Workable permanecem via endpoints públicos oficiais.
+- Extensão: API localhost fixa removida; service worker usa HTTPS e token revogável separado, com opções locais, CORS para origem chrome-extension e rate limit dedicado.
+- Operações: template Nginx recebeu HSTS e cabeçalhos; scripts isolados de healthcheck, backup e restore drill temporário foram adicionados.
+- Validações: backend 87 testes aprovados e 48,33% de statements; frontend 6 testes, lint e build aprovados; extensão check/build aprovados; E2E fictício desktop/mobile aprovado; npm audit sem vulnerabilidades nos três projetos.
+- Segurança: nenhuma assinatura sensível em arquivos rastreados; `.env`, `backend/.env` e `deploy/.env.production` continuam ignorados.
+- Pendências exclusivas da VPS: gerar/configurar token da extensão, validar fontes reais aprovadas, instalar extensão, aplicar/testar HSTS, executar backup/restore drill e realizar canário de comunicação após 2026-08-28.
+### 2026-08-24 - Retry de regeneração e testes críticos
+
+- A regeneração passou a reutilizar a fila transacional: reivindicação por tipo com `FOR UPDATE SKIP LOCKED`, retomada de itens `FAILED`, backoff exponencial, limite de tentativas e estado terminal `DEAD`.
+- O worker processa no máximo cinco regenerações por ciclo e registra tentativa e limite nos logs de falha.
+- A política do Action Center foi extraída e testada para aprovar, ignorar, adiar 24 horas, regenerar, encaminhar manualmente e confirmar submissão.
+- A proteção de mesma origem agora valida host e protocolo; CORS da extensão foi isolado e testado sem permitir credenciais de navegador.
+- Validação: backend com 89 testes unitários aprovados e teste PostgreSQL isolado com 2 cenários aprovado; frontend com 20 testes, lint sem avisos e build de produção aprovado.
+- Segurança: nenhum envio externo foi habilitado e os bancos temporários de teste foram removidos após a execução.
+### 2026-08-24 - Revisão final pré-commit
+
+- Corrigido o adiamento do Action Center: itens com \`due_at\` futuro deixam a fila até o vencimento.
+- Regenerações em processamento não podem ser reiniciadas; novos pedidos limpam locks antigos apenas quando o item não está \`PROCESSING\`.
+- A confirmação da extensão tornou-se idempotente e não regride \`TEST\`, \`INTERVIEW\` ou \`OFFER\` para \`SUBMITTED\`; estados encerrados bloqueiam nova confirmação.
+- Dados externos de título e empresa são escapados antes de entrar no HTML da extensão, e URLs não HTTP/HTTPS de JSON-LD são descartadas.
+- O backup deixou de depender de pipeline sem \`pipefail\`: \`pg_dump\` precisa concluir e produzir SQL não vazio antes da compactação.
+- Validação final: backend com 90 testes aprovados; fila com 2 testes PostgreSQL isolados; frontend com 28 testes, lint e build; extensão com type-check/build; scripts shell e Compose válidos.
+- Varredura pré-commit encontrou apenas placeholders nos arquivos de exemplo; ambientes reais e \`.tmp/\` permanecem ignorados.

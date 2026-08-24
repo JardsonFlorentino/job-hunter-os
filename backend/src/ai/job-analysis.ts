@@ -18,6 +18,9 @@ const analysisSchema = z.object({
 }).superRefine((value, context) => {
   if (value.fit !== (value.decision === "APLICAR")) context.addIssue({ code: "custom", message: "fit deve corresponder à decisão APLICAR" });
   if (value.decision === "APLICAR" && (value.matchScore < 70 || !value.descriptionSufficient)) context.addIssue({ code: "custom", message: "APLICAR exige score >= 70 e descrição suficiente" });
+  if (value.decision === "APLICAR" && value.essentialRequirements.some((requirement) => !requirement.met)) context.addIssue({ code: "custom", path: ["essentialRequirements"], message: "APLICAR não permite requisito essencial não atendido" });
+  if (value.decision === "APLICAR" && value.scoreBreakdown.seniority < 60) context.addIssue({ code: "custom", path: ["scoreBreakdown", "seniority"], message: "APLICAR exige senioridade minimamente compatível" });
+  if (value.decision === "APLICAR" && value.scoreBreakdown.restrictions < 80) context.addIssue({ code: "custom", path: ["scoreBreakdown", "restrictions"], message: "APLICAR exige elegibilidade e restrições compatíveis" });
 });
 
 export type JobFitAnalysis = z.infer<typeof analysisSchema>;

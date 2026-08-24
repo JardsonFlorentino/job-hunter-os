@@ -49,6 +49,37 @@ export async function claimNext(prisma: PrismaClient, workerId: string): Promise
   return rows[0] ?? null;
 }
 
+export async function claimNextOfType(prisma: PrismaClient, workerId: string, type: string): Promise<ClaimedQueueItem | null> {
+  const rows = await prisma.$queryRaw<ClaimedQueueItem[]>`
+    WITH candidate AS (
+      SELECT queued.id
+      FROM queue_items AS queued
+      WHERE queued.type = ${type}
+        AND queued.status IN ('PENDING'::"QueueItemStatus", 'FAILED'::"QueueItemStatus")
+        AND queued.attempts < queued.max_attempts
+        AND queued.next_attempt_at <= NOW()
+        AND (queued.locked_at IS NULL OR queued.locked_at < NOW() - INTERVAL '15 minutes')
+      ORDER BY queued.next_attempt_at ASC, queued.created_at ASC
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1
+    )
+    UPDATE queue_items AS queue
+    SET status = 'PROCESSING'::"QueueItemStatus",
+        locked_at = NOW(),
+        locked_by = ${workerId},
+        attempts = queue.attempts + 1,
+        updated_at = NOW()
+    FROM candidate
+    WHERE queue.id = candidate.id
+    RETURNING queue.id, queue.type, queue.dedupe_key, queue.payload, queue.attempts, queue.max_attempts
+  `;
+  return rows[0] ?? null;
+}
+
+export function failureStatus(attempts: number, maxAttempts: number): QueueItemStatus {
+  return attempts >= maxAttempts ? QueueItemStatus.DEAD : QueueItemStatus.FAILED;
+}
+
 export async function complete(prisma: PrismaClient, itemId: string, workerId: string): Promise<boolean> {
   const result = await prisma.queueItem.updateMany({
     where: { id: itemId, status: QueueItemStatus.PROCESSING, locked_by: workerId },
@@ -58,11 +89,10 @@ export async function complete(prisma: PrismaClient, itemId: string, workerId: s
 }
 
 export async function fail(prisma: PrismaClient, item: ClaimedQueueItem, workerId: string, error: unknown): Promise<boolean> {
-  const dead = item.attempts >= item.max_attempts;
   const result = await prisma.queueItem.updateMany({
     where: { id: item.id, status: QueueItemStatus.PROCESSING, locked_by: workerId },
     data: {
-      status: dead ? QueueItemStatus.DEAD : QueueItemStatus.FAILED,
+      status: failureStatus(item.attempts, item.max_attempts),
       next_attempt_at: new Date(Date.now() + retryDelayMs(item.attempts)),
       locked_at: null,
       locked_by: null,

@@ -4,9 +4,11 @@ import { connectorForTarget } from "./target-registry.js";
 
 describe("career target registry", () => {
   it.each([JobSourcePlatform.GREENHOUSE, JobSourcePlatform.LEVER, JobSourcePlatform.ASHBY, JobSourcePlatform.WORKABLE, JobSourcePlatform.SMARTRECRUITERS])("cria connector suportado para %s", (platform) => {
-    expect(connectorForTarget({ name: "Empresa Demo", platform, identifier: "empresa-demo" })?.platform).toBe(platform);
+    expect(connectorForTarget({ name: "Empresa Demo", platform, identifier: "empresa-demo", careers_url: "https://jobs.example.com" })?.platform).toBe(platform);
   });
-  it("mantém alvo sem identificador ou ATS suportado para revisão", () => {
-    expect(connectorForTarget({ name: "Empresa", platform: JobSourcePlatform.COMPANY_SITE, identifier: null })).toBeNull();
+  it.each([JobSourcePlatform.GUPY, JobSourcePlatform.INDEED])("cria conector público controlado para %s sem credenciais", (platform) => {
+    expect(connectorForTarget({ name: "Empresa Demo", platform, identifier: null, careers_url: "https://jobs.example.com/vaga/123" })?.platform).toBe(platform);
+  });  it("mantém alvo sem identificador ou ATS suportado para revisão", () => {
+    expect(connectorForTarget({ name: "Empresa", platform: JobSourcePlatform.COMPANY_SITE, identifier: null, careers_url: "https://empresa.example.com/carreiras" })).toBeNull();
   });
 });

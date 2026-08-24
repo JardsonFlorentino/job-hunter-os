@@ -7,7 +7,7 @@
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
     "lib": ["DOM", "ES2022"],
-    "types": ["chrome"],
+    "types": [],
     "outDir": "dist",
     "rootDir": "src"
   },

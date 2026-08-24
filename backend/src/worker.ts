@@ -16,9 +16,11 @@ import { checkInboxForReplies } from "./email/reader.js";
 import { sendJobApplication } from "./email/sender.js";
 import { normalizeText } from "./opportunities/normalization.js";
 import { buildAtsResumeText, buildFactualCvData } from "./materials/factual-material.js";
+import { generateRecruiterMessage } from "./materials/ai-materials.js";
 import { storeGeneratedMaterial } from "./materials/repository.js";
 import { createApplicationOnce } from "./opportunities/opportunity-repository.js";
 import { prepareFollowUpDrafts } from "./applications/follow-up.js";
+import { claimNextOfType, complete, fail } from "./queue/queue-service.js";
 import { getAutomaticEmailDecision } from "./applications/operating-policy.js";
 import { errorDetails, logger } from "./observability/logger.js";
 
@@ -42,6 +44,15 @@ function buildJobContext(job: Job): string {
   );
 }
 
+async function prepareCoreMaterials(applicationId: string, job: Job, profile: CandidateProfile, approvedContext: ApprovedCareerContext): Promise<Buffer> {
+  const cvData = buildFactualCvData(profile, job, approvedContext);
+  const pdfBuffer = await generatePDF(cvData);
+  await storeGeneratedMaterial(prisma, { applicationId, type: MaterialType.CV_VISUAL, data: pdfBuffer });
+  await storeGeneratedMaterial(prisma, { applicationId, type: MaterialType.CV_ATS, text: buildAtsResumeText(cvData) });
+  await generateRecruiterMessage(prisma, applicationId, approvedContext, job);
+  await prisma.applicationEvent.create({ data: { application_id: applicationId, type: ApplicationEventType.MATERIAL_GENERATED, message: "Currículo visual, currículo ATS e mensagem ao recrutador gerados a partir do Career DNA aprovado." } });
+  return pdfBuffer;
+}
 async function processJob(job: Job, profile: CandidateProfile, approvedContext: ApprovedCareerContext): Promise<void> {
   const careerContext = serializeApprovedCareerContext(approvedContext);
   const analysisInput = `CAREER_DNA_APROVADO:\n${careerContext}\n\nVAGA:\n${buildJobContext(job)}`;
@@ -50,7 +61,18 @@ async function processJob(job: Job, profile: CandidateProfile, approvedContext: 
     ANALYZE_JOB_PROMPT,
     { json: true },
   );
-  const analysis = parseJobFitAnalysis(analysisResponse);
+  let analysis: ReturnType<typeof parseJobFitAnalysis>;
+  try {
+    analysis = parseJobFitAnalysis(analysisResponse);
+  } catch (parseError: unknown) {
+    logger.warn({ event: "job.analysis_json_repair", jobId: job.id, error: parseError instanceof Error ? parseError.message : "JSON inválido" }, "Solicitando uma única correção estrutural à IA.");
+    const repairedResponse = await callAi(
+      `${analysisInput}\n\nA resposta anterior foi inválida. Gere novamente o JSON completo obedecendo rigorosamente ao schema e às regras.`,
+      ANALYZE_JOB_PROMPT,
+      { json: true },
+    );
+    analysis = parseJobFitAnalysis(repairedResponse);
+  }
 
   if (job.opportunity_id) {
     const inputHash = createHash("sha256").update(analysisInput).digest("hex");
@@ -101,38 +123,28 @@ async function processJob(job: Job, profile: CandidateProfile, approvedContext: 
     return;
   }
 
+  if (!job.opportunity_id) throw new Error("Vaga sem Opportunity vinculada; preparação de candidatura bloqueada.");
+  const initialStatus = analysis.decision === "REVISAR" ? ApplicationStatus.MANUAL_ACTION : ApplicationStatus.DRAFT;
+  const applicationId = await createApplicationOnce(prisma, job.opportunity_id, profile.id, initialStatus);
+  const pdfBuffer = await prepareCoreMaterials(applicationId, job, profile, approvedContext);
+
   if (analysis.decision === "REVISAR") {
-    if (job.opportunity_id) await createApplicationOnce(prisma, job.opportunity_id, profile.id, ApplicationStatus.MANUAL_ACTION);
-    await prisma.job.update({ where: { id: job.id }, data: { status: JobStatus.MANUAL, matchScore: analysis.matchScore, aiReason: analysis.aiReason } });
+    await prisma.job.update({ where: { id: job.id }, data: { status: JobStatus.MANUAL, matchScore: analysis.matchScore, aiReason: `${analysis.aiReason} Materiais preparados para revisão.` } });
     return;
   }
 
   const contactEmail = job.contato_email?.trim();
   if (!contactEmail || !EMAIL_PATTERN.test(contactEmail)) {
-    if (job.opportunity_id) await createApplicationOnce(prisma, job.opportunity_id, profile.id, ApplicationStatus.MANUAL_ACTION);
     if (job.link.includes("linkedin.com/jobs/")) {
       await routeLinkedinApplication(job.id, job.link);
-      return;
+    } else {
+      await prisma.job.update({ where: { id: job.id }, data: { status: JobStatus.MANUAL, matchScore: analysis.matchScore, aiReason: `${analysis.aiReason} Sem contato público; materiais preparados para candidatura manual.` } });
     }
-
-    logger.info({ event: "job.manual_required", jobId: job.id, reason: "missing_contact" }, "Vaga encaminhada para candidatura manual.");
-    await prisma.job.update({
-      where: { id: job.id },
-      data: {
-        status: JobStatus.MANUAL,
-        matchScore: analysis.matchScore,
-        aiReason: `${analysis.aiReason} Sem contato de candidatura disponível.`,
-      },
-    });
+    await prisma.application.update({ where: { id: applicationId }, data: { status: ApplicationStatus.MANUAL_ACTION, channel: "MANUAL", next_action: "Revisar materiais e concluir a candidatura no canal original." } });
+    logger.info({ event: "job.manual_required", jobId: job.id, applicationId, reason: "missing_contact", materialsPrepared: true }, "Materiais preparados para candidatura manual.");
     return;
   }
 
-  if (!job.opportunity_id) throw new Error("Vaga sem Opportunity vinculada; candidatura automática bloqueada.");
-  const applicationId = await createApplicationOnce(prisma, job.opportunity_id, profile.id, ApplicationStatus.DRAFT);
-  const cvData = buildFactualCvData(profile, job, approvedContext);
-  const pdfBuffer = await generatePDF(cvData);
-  await storeGeneratedMaterial(prisma, { applicationId, type: MaterialType.CV_VISUAL, data: pdfBuffer });
-  await storeGeneratedMaterial(prisma, { applicationId, type: MaterialType.CV_ATS, text: buildAtsResumeText(cvData) });
   const emailBody = await callAi(
     `CAREER_DNA_APROVADO:\n${careerContext}\n\nVAGA:\n${buildJobContext(job)}`,
     GENERATE_EMAIL_PROMPT,
@@ -195,6 +207,33 @@ async function processJob(job: Job, profile: CandidateProfile, approvedContext: 
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export async function processMaterialRegenerationQueue(): Promise<void> {
+  const workerId = `material-regeneration:${process.pid}`;
+  for (let processed = 0; processed < 5; processed += 1) {
+    const item = await claimNextOfType(prisma, workerId, "MATERIAL_REGENERATION");
+    if (!item) break;
+    try {
+      if (!isRecord(item.payload) || typeof item.payload.applicationId !== "string") throw new Error("Payload de regeneração inválido.");
+      const application = await prisma.application.findUnique({
+        where: { id: item.payload.applicationId },
+        include: { profile: true, opportunity: { include: { legacy_jobs: { orderBy: { updated_at: "desc" }, take: 1 } } } },
+      });
+      const job = application?.opportunity.legacy_jobs[0];
+      if (!application || !job) throw new Error("Candidatura sem vaga legada vinculada para regeneração.");
+      const context = await loadApprovedCareerContext(prisma, application.profile.id);
+      await prepareCoreMaterials(application.id, job, application.profile, context);
+      if (!await complete(prisma, item.id, workerId)) throw new Error("A posse do item de regeneração foi perdida antes da conclusão.");
+      logger.info({ event: "materials.regenerated", applicationId: application.id, queueItemId: item.id }, "Materiais regenerados com nova versão auditável.");
+    } catch (error: unknown) {
+      await fail(prisma, item, workerId, error);
+      logger.error({ event: "materials.regeneration_failed", queueItemId: item.id, attempt: item.attempts, maxAttempts: item.max_attempts, ...errorDetails(error) }, "Falha ao regenerar materiais.");
+    }
+  }
+}
 export async function processPendingJobs(): Promise<void> {
   const profile = await prisma.candidateProfile.findFirst({
     orderBy: { updated_at: "desc" },
@@ -256,6 +295,7 @@ export async function mainLoop(): Promise<never> {
         await runStep("execução dos scrapers", runAllScrapers);
       }
       if (runtimeConfig.ENABLE_JOB_PROCESSING && runtimeConfig.APPLICATION_MODE !== "OBSERVE") {
+        await runStep("regeneração de materiais solicitados", processMaterialRegenerationQueue);
         await runStep("processamento de vagas pendentes", processPendingJobs);
       } else if (runtimeConfig.ENABLE_JOB_PROCESSING) {
         logger.info({ event: "jobs.processing_skipped", mode: runtimeConfig.APPLICATION_MODE }, "Processamento bloqueado pelo modo de observacao.");

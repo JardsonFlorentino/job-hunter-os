@@ -71,14 +71,23 @@ export async function verifySessionToken(token: string | undefined, now = Date.n
   }
 }
 
+export function verifyExtensionToken(request: Request): boolean {
+  const expected = process.env.EXTENSION_API_TOKEN?.trim();
+  const authorization = request.headers.get("authorization");
+  if (!expected || expected.length < 32 || !authorization?.startsWith("Bearer ")) return false;
+  return constantTimeEqual(authorization.slice(7).trim(), expected);
+}
 export const authCookie = { name: SESSION_COOKIE, maxAge: SESSION_TTL_SECONDS } as const;
 
 export function hasSameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
   if (!origin || !host) return false;
   try {
-    return new URL(origin).host === host;
+    const originUrl = new URL(origin);
+    const requestProtocol = forwardedProtocol ? `${forwardedProtocol}:` : new URL(request.url).protocol;
+    return originUrl.host === host && originUrl.protocol === requestProtocol;
   } catch {
     return false;
   }

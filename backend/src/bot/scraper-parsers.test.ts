@@ -8,7 +8,7 @@ import {
   extractContactEmail,
   readGithubIssueDescription,
 } from "./github-scraper.js";
-import { readLinkedinJobDescription } from "./linkedin-scraper.js";
+import { normalizeJobDescription, readLinkedinJobDescription } from "./linkedin-scraper.js";
 
 let browser: Browser | undefined;
 
@@ -39,6 +39,17 @@ describe("parsers offline dos scrapers", () => {
     await page.close();
   });
 
+  it("normaliza entidades e preserva blocos relevantes", () => {
+    expect(normalizeJobDescription("<p>React &#38; Node.js</p><li>Remoto&nbsp;Brasil</li>")).toBe("React & Node.js\nRemoto Brasil");
+  });
+
+  it("encontra JobPosting dentro de @graph", async () => {
+    if (!browser) throw new Error("Browser de teste indisponível.");
+    const page = await browser.newPage();
+    await page.setContent(`<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": [{ "@type": "Organization", name: "Acme" }, { "@type": "JobPosting", description: "<p>TypeScript e React</p>", qualifications: "Testes automatizados" }] })}</script>`);
+    await expect(readLinkedinJobDescription(page)).resolves.toBe("TypeScript e React\nTestes automatizados");
+    await page.close();
+  });
   it("extrai e limpa JobPosting JSON-LD do LinkedIn", async () => {
     if (!browser) throw new Error("Browser de teste indisponível.");
     const page = await browser.newPage();
@@ -46,7 +57,7 @@ describe("parsers offline dos scrapers", () => {
 
     const description = await readLinkedinJobDescription(page);
     expect(description).toBe(
-      "Construa interfaces com React & TypeScript. Conhecimento de Next.js é desejável.",
+      "Construa interfaces com React & TypeScript.\nConhecimento de Next.js é desejável.",
     );
     await page.close();
   });

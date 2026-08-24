@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Job Hunter OS Assistant",
-  "version": "0.1.0",
-  "description": "Assistente local para revisar e preencher candidaturas com fatos aprovados.",
+  "version": "0.2.0",
+  "description": "Assistente seguro para revisar e preencher candidaturas com fatos aprovados.",
   "permissions": ["storage"],
-  "host_permissions": ["http://localhost:3000/*"],
+  "host_permissions": ["http://localhost:3000/*", "https://jobhunter.jardsonflorentino.com.br/*"],
+  "background": { "service_worker": "dist/background.js", "type": "module" },
+  "options_page": "options.html",
   "content_scripts": [{
-    "matches": ["https://*.linkedin.com/*", "https://*.gupy.io/*", "https://*.indeed.com/*", "https://*.greenhouse.io/*", "https://*.lever.co/*", "https://*.ashbyhq.com/*", "https://*.smartrecruiters.com/*", "https://*.workable.com/*"],
+    "matches": ["https://*.linkedin.com/*", "https://*.gupy.io/*", "https://*.indeed.com/*", "https://*.indeed.com.br/*", "https://*.greenhouse.io/*", "https://*.lever.co/*", "https://*.ashbyhq.com/*", "https://*.smartrecruiters.com/*", "https://*.workable.com/*"],
     "js": ["dist/content.js"],
     "run_at": "document_idle"
   }]

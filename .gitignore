@@ -29,6 +29,7 @@ backend/src/career-dna/apply-reviewed-resume.ts
 
 # Logs and local tooling
 *.log
+.tmp/
 .DS_Store
 .idea/
 .vscode/

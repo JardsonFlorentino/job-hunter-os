@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 
+import { submissionConfirmationDecision } from "./submission-policy";
+
 const schema = z.object({ url: z.url(), kind: z.literal("SUBMISSION_CONFIRMED") });
 
 function canonical(raw: string): string {
@@ -20,6 +22,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     const source = await prisma.jobSource.findFirst({ where: { OR: [{ raw_url: payload.url }, { canonical_url: canonical(payload.url) }] }, include: { opportunity: { include: { applications: { orderBy: { created_at: "desc" }, take: 1 } } } } });
     const application = source?.opportunity.applications[0];
     if (!application) return NextResponse.json({ error: "Candidatura não encontrada." }, { status: 404 });
+    const decision = submissionConfirmationDecision(application.status);
+    if (decision === "ALREADY_RECORDED") return NextResponse.json({ ok: true, duplicate: true });
+    if (decision === "BLOCK") return NextResponse.json({ error: "O estado atual da candidatura não permite confirmar um novo envio." }, { status: 409 });
     await prisma.$transaction([
       prisma.application.update({ where: { id: application.id }, data: { status: ApplicationStatus.SUBMITTED, submitted_at: application.submitted_at ?? new Date(), channel: application.channel ?? "ASSISTED_EXTENSION" } }),
       prisma.applicationEvent.create({ data: { application_id: application.id, type: ApplicationEventType.SUBMITTED, from_status: application.status, to_status: ApplicationStatus.SUBMITTED, message: "Confirmação de envio detectada pela extensão assistida." } }),

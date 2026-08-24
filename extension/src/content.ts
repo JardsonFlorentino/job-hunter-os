@@ -1,4 +1,11 @@
-const API = "http://localhost:3000/api/assistant";
+export {};
+
+interface ApiResult { ok: boolean; status: number; data: unknown }
+
+async function apiRequest(path: "/opportunity" | "/application-event", method: "GET" | "POST", options: { query?: string; body?: unknown } = {}): Promise<ApiResult> {
+  const response: unknown = await chrome.runtime.sendMessage({ type: "JOB_HUNTER_API", path, method, ...options });
+  return response as ApiResult;
+}
 
 interface AssistantData {
   found: boolean;
@@ -39,18 +46,22 @@ function fillApproved(data: AssistantData): { filled: number; unknownRequired: n
 
 async function reportConfirmation(): Promise<void> {
   if (!/candidatura (enviada|recebida)|application (submitted|received)|obrigado por se candidatar/i.test(document.body.innerText)) return;
-  await fetch(`${API}/application-event`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: location.href, kind: "SUBMISSION_CONFIRMED" }) });
+  await apiRequest("/application-event", "POST", { body: { url: location.href, kind: "SUBMISSION_CONFIRMED" } });
 }
 
+function escaped(value: string): string {
+  const entities: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return value.replace(/[&<>"']/g, (character) => entities[character] ?? character);
+}
 async function start(): Promise<void> {
   void reportConfirmation().catch(() => undefined);
-  const response = await fetch(`${API}/opportunity?url=${encodeURIComponent(location.href)}`);
+  const response = await apiRequest("/opportunity", "GET", { query: `url=${encodeURIComponent(location.href)}` });
   if (!response.ok) return;
-  const data = await response.json() as AssistantData;
+  const data = response.data as AssistantData;
   const host = document.createElement("div"); host.id = "job-hunter-assistant"; document.documentElement.append(host);
   const shadow = host.attachShadow({ mode: "closed" });
   const panel = document.createElement("aside");
-  panel.innerHTML = `<style>:host{all:initial}aside{position:fixed;right:16px;bottom:16px;z-index:2147483647;width:300px;padding:16px;border:1px solid #334155;border-radius:14px;background:#070a10;color:#e2e8f0;font:12px system-ui;box-shadow:0 20px 50px #0008}h2{margin:0 0 8px;color:#67e8f9;font-size:15px}p{margin:5px 0}.warn{color:#fdba74}.good{color:#6ee7b7}button{width:100%;margin-top:10px;padding:9px;border:0;border-radius:8px;background:#22d3ee;color:#082f49;font-weight:700;cursor:pointer}label{display:flex;gap:7px;margin-top:10px;color:#fcd34d}</style><h2>Job Hunter Assistant</h2><p>${data.found ? `${data.opportunity?.title ?? "Vaga"} · ${data.opportunity?.company ?? ""}` : "Vaga ainda não catalogada"}</p><p class="${data.opportunity?.alreadyApplied ? "warn" : "good"}">${data.opportunity?.alreadyApplied ? "⚠ Já existe candidatura registrada" : `Score: ${data.opportunity?.assessment?.match_score ?? "não avaliado"}`}</p><p class="warn" id="risks"></p><button id="fill">Preencher fatos aprovados</button><p id="result"></p><label><input id="confirm" type="checkbox"> Revisei todos os campos e autorizo meu envio manual</label>`;
+  panel.innerHTML = `<style>:host{all:initial}aside{position:fixed;right:16px;bottom:16px;z-index:2147483647;width:300px;padding:16px;border:1px solid #334155;border-radius:14px;background:#070a10;color:#e2e8f0;font:12px system-ui;box-shadow:0 20px 50px #0008}h2{margin:0 0 8px;color:#67e8f9;font-size:15px}p{margin:5px 0}.warn{color:#fdba74}.good{color:#6ee7b7}button{width:100%;margin-top:10px;padding:9px;border:0;border-radius:8px;background:#22d3ee;color:#082f49;font-weight:700;cursor:pointer}label{display:flex;gap:7px;margin-top:10px;color:#fcd34d}</style><h2>Job Hunter Assistant</h2><p>${data.found ? `${escaped(data.opportunity?.title ?? "Vaga")} · ${escaped(data.opportunity?.company ?? "")}` : "Vaga ainda não catalogada"}</p><p class="${data.opportunity?.alreadyApplied ? "warn" : "good"}">${data.opportunity?.alreadyApplied ? "⚠ Já existe candidatura registrada" : `Score: ${data.opportunity?.assessment?.match_score ?? "não avaliado"}`}</p><p class="warn" id="risks"></p><button id="fill">Preencher fatos aprovados</button><p id="result"></p><label><input id="confirm" type="checkbox"> Revisei todos os campos e autorizo meu envio manual</label>`;
   shadow.append(panel);
   const risks = detectRisks(); const risksNode = panel.querySelector<HTMLElement>("#risks"); if (risksNode) risksNode.textContent = risks.join(" · ");
   panel.querySelector("#fill")?.addEventListener("click", () => { const result = fillApproved(data); const node = panel.querySelector<HTMLElement>("#result"); if (node) node.textContent = `${result.filled} campos preenchidos; ${result.unknownRequired} obrigatórios exigem revisão.`; });

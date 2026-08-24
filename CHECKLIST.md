@@ -7,7 +7,7 @@
 - [x] 16.3 Adicionar kill switch, limite diario, score minimo e allowlist para envio automatico.
 - [x] 16.4 Auditar e reduzir a divergencia entre `Job` legado e `Opportunity`/`Application`.
 - [x] 16.5 Atualizar fontes conhecidas e calibrar deduplicacao com dados reais controlados.
-- [ ] 16.6 Validar SMTP/IMAP em sandbox, sem destinatarios externos.
+- [x] 16.6 Validar SMTP/IMAP em sandbox, sem destinatarios externos.
 - [x] 16.7 Executar canarios somente de leitura para cada conector habilitado.
 - [x] 16.8 Proteger dashboard e servicos antes de exposicao em VPS.
 - [x] 16.9 Publicar o codigo novo com `DRY_RUN=true` e observar ao menos um ciclo.
@@ -236,3 +236,25 @@ Quando faltar informação factual do proprietário, registrar o bloqueio e cont
 - [ ] 18.6 Executar preflight final de credenciais, backup e restauração antes do go-live.
 
 **Gate:** superfície pública protegida, serviços internos isolados e recuperação validada antes da exposição na internet.
+
+## Fase 19 - Validacao real na VPS e fechamento operacional
+
+- [x] 19.1 Publicar frontend, backend e PostgreSQL isolados na VPS com HTTPS.
+- [x] 19.2 Validar healthchecks, dominio e continuidade dos servicos existentes.
+- [x] 19.3 Validar Groq, SMTP e IMAP sem envio ou leitura de mensagens.
+- [x] 19.4 Limitar IMAP por data, lote e checkpoint persistente.
+- [x] 19.5 Tratar rate limit 429 da Groq com retry e backoff.
+- [x] 19.6 Validar Chrome e geracao de PDF em memoria no container.
+- [ ] 19.7 Corrigir preview autenticado do PDF e adicionar download. (implementado e validado localmente; pendente deploy e validação visual na VPS)
+- [ ] 19.8 Completar o Action Center com aprovar, ignorar, adiar, regenerar e marcar aplicacao manual. (implementado; política e retry/dead-letter testados localmente e em PostgreSQL isolado; pendente deploy/E2E)
+- [ ] 19.9 Gerar CV visual, CV ATS e mensagem para vagas manuais sem e-mail. (implementado e validado localmente; pendente execução controlada na VPS)
+- [ ] 19.10 Sincronizar metricas e modo operacional real na Visao geral. (implementado e validado localmente; pendente validação visual na VPS)
+- [ ] 19.11 Fortalecer IA contra JSON invalido, exageros, senioridade e elegibilidade nao confirmada. (implementado e testado localmente; pendente canário na VPS)
+- [ ] 19.12 Melhorar enriquecimento de descricoes publicas do LinkedIn. (parser ampliado e testado offline; pendente execução real na VPS)
+- [ ] 19.13 Validar Gupy, Indeed e ATS suportados com fontes reais controladas. (conectores e testes offline prontos; pendente URLs reais aprovadas)
+- [ ] 19.14 Conectar a extensao ao dominio da VPS com token revogavel, CORS e rate limit. (implementado e compilado localmente; pendente token/deploy/instalação)
+- [ ] 19.15 Executar canario de e-mail para o proprio candidato e validar resposta IMAP apos 2026-08-28.
+- [ ] 19.16 Adicionar HSTS, monitoramento e testar restauracao de backup na VPS. (templates e scripts prontos; pendente execução controlada na VPS)
+- [ ] 19.17 Executar E2E final: descoberta, analise, materiais, aprovacao, envio controlado e resposta. (E2E local fictício aprovado; pendente ciclo controlado real na VPS)
+
+**Gate:** o sistema so entra em automacao controlada depois que materiais, decisoes humanas, deduplicacao e comunicacao forem validados de ponta a ponta na VPS.

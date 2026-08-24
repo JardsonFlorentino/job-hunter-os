@@ -1,9 +1,10 @@
 import { JobSourcePlatform, type CareerPageTarget, type PrismaClient } from "@prisma/client";
 
-import { AshbyConnector, GreenhouseConnector, LeverConnector, SmartRecruitersConnector, WorkableConnector } from "./public-ats-connectors.js";
+import { AshbyConnector, GreenhouseConnector, LeverConnector, PublicJobPageConnector, SmartRecruitersConnector, WorkableConnector } from "./public-ats-connectors.js";
 import type { JobSourceConnector } from "./types.js";
 
-export function connectorForTarget(target: Pick<CareerPageTarget, "name" | "platform" | "identifier">): JobSourceConnector | null {
+export function connectorForTarget(target: Pick<CareerPageTarget, "name" | "platform" | "identifier" | "careers_url">): JobSourceConnector | null {
+  if (target.platform === JobSourcePlatform.GUPY || target.platform === JobSourcePlatform.INDEED) return new PublicJobPageConnector(target.platform, target.careers_url, target.name);
   const identifier = target.identifier?.trim();
   if (!identifier) return null;
   switch (target.platform) {

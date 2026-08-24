@@ -1,6 +1,7 @@
+import { JobSourcePlatform } from "@prisma/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AshbyConnector, GreenhouseConnector, htmlToPlainText, LeverConnector, SmartRecruitersConnector, WorkableConnector } from "./public-ats-connectors.js";
+import { AshbyConnector, GreenhouseConnector, htmlToPlainText, LeverConnector, parsePublicJobPostingHtml, PublicJobPageConnector, SmartRecruitersConnector, WorkableConnector } from "./public-ats-connectors.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -47,6 +48,22 @@ describe("public ATS connectors", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it.each([
+    ["GUPY", JobSourcePlatform.GUPY, "https://empresa.gupy.io/jobs/123"],
+    ["INDEED", JobSourcePlatform.INDEED, "https://br.indeed.com/viewjob?jk=abc"],
+  ] as const)("maps %s public JobPosting JSON-LD", async (_label, platform, url) => {
+    const html = `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@type": "JobPosting", title: "Full Stack Júnior", description: "<p>React &amp; Node.js</p>", url, hiringOrganization: { name: "Acme" }, jobLocationType: "TELECOMMUTE" })}</script>`;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(html, { status: 200, headers: { "content-type": "text/html" } })));
+    const connector = new PublicJobPageConnector(platform, url, "Empresa fallback");
+    const [reference] = await connector.discover(context());
+    expect(reference?.company).toBe("Acme");
+    expect(reference?.location).toBe("Remoto");
+    expect(reference && (await connector.enrich(reference)).description).toBe("React & Node.js");
+  });
+  it("rejects non-HTTP URLs from untrusted JSON-LD", () => {
+    const html = '<script type="application/ld+json">' + JSON.stringify({ "@type": "JobPosting", title: "Vaga maliciosa", url: "javascript:alert(1)" }) + "</script>";
+    expect(parsePublicJobPostingHtml(html, "https://jobs.example/vaga", "Empresa")).toEqual([]);
+  });
   it("maps Workable public careers endpoint", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ jobs: [{ title: "Full Stack Junior", shortcode: "ABC123", url: "https://apply.workable.com/acme/j/ABC123", description_html: "<p>React &amp; Node.js</p>", location: { location_str: "Brasil - Remoto" } }] }), { status: 200 })));
     const connector = new WorkableConnector("acme", "Acme");

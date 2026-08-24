@@ -131,4 +131,76 @@ export class WorkableConnector extends CachedPublicConnector {
   }
 }
 
+function jsonLdJobRecords(value: unknown, records: Record<string, unknown>[] = []): Record<string, unknown>[] {
+  if (Array.isArray(value)) {
+    for (const item of value) jsonLdJobRecords(item, records);
+    return records;
+  }
+  if (typeof value !== "object" || value === null) return records;
+  const record = value as Record<string, unknown>;
+  const types = Array.isArray(record["@type"]) ? record["@type"] : [record["@type"]];
+  if (types.includes("JobPosting")) records.push(record);
+  for (const nested of Object.values(record)) jsonLdJobRecords(nested, records);
+  return records;
+}
+
+function nestedString(value: unknown, ...keys: string[]): string | null {
+  let current = value;
+  for (const key of keys) {
+    if (typeof current !== "object" || current === null) return null;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.trim() ? current.trim() : null;
+}
+
+function jobLocation(record: Record<string, unknown>): string | null {
+  const locations = Array.isArray(record.jobLocation) ? record.jobLocation : [record.jobLocation];
+  for (const location of locations) {
+    const address = typeof location === "object" && location !== null ? (location as Record<string, unknown>).address : null;
+    if (typeof address === "string" && address.trim()) return address.trim();
+    if (typeof address === "object" && address !== null) {
+      const parts = ["addressLocality", "addressRegion", "addressCountry"].map((key) => (address as Record<string, unknown>)[key]).filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+      if (parts.length) return parts.join(", ");
+    }
+  }
+  return nestedString(record, "applicantLocationRequirements", "name") ?? (record.jobLocationType === "TELECOMMUTE" ? "Remoto" : null);
+}
+
+export function parsePublicJobPostingHtml(html: string, pageUrl: string, fallbackCompany: string): DiscoveredOpportunityInput[] {
+  const jobs: DiscoveredOpportunityInput[] = [];
+  const scripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  for (const match of scripts) {
+    try {
+      const parsed: unknown = JSON.parse(match[1] ?? "null");
+      for (const record of jsonLdJobRecords(parsed)) {
+        const title = typeof record.title === "string" ? record.title.trim() : "";
+        if (!title) continue;
+        const rawUrl = typeof record.url === "string" ? record.url : pageUrl;
+        const parsedUrl = new URL(rawUrl, pageUrl);
+        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") continue;
+        const url = parsedUrl.toString();
+        const company = nestedString(record, "hiringOrganization", "name") ?? fallbackCompany;
+        const description = typeof record.description === "string" ? plainText(record.description) : null;
+        jobs.push({ title, company, url, location: jobLocation(record), description });
+      }
+    } catch { /* JSON-LD inválido é ignorado sem derrubar as demais vagas */ }
+  }
+  return [...new Map(jobs.map((job) => [job.url, job])).values()];
+}
+
+export class PublicJobPageConnector extends CachedPublicConnector {
+  readonly name: string;
+  constructor(readonly platform: typeof JobSourcePlatform.GUPY | typeof JobSourcePlatform.INDEED, private readonly pageUrl: string, private readonly companyName: string) {
+    super();
+    this.name = `${platform.toLowerCase()}:${new URL(pageUrl).hostname}`;
+  }
+  protected endpoint(): string { return this.pageUrl; }
+  protected async load(signal: AbortSignal): Promise<DiscoveredOpportunityInput[]> {
+    const response = await fetch(this.pageUrl, { signal, headers: { accept: "text/html,application/xhtml+xml" }, redirect: "follow" });
+    if (!response.ok) throw new Error(`${this.platform} HTTP ${response.status}`);
+    const jobs = parsePublicJobPostingHtml(await response.text(), response.url || this.pageUrl, this.companyName);
+    if (!jobs.length) throw new Error(`${this.platform} não expôs JobPosting público; encaminhe para revisão assistida.`);
+    return jobs;
+  }
+}
 export { plainText as htmlToPlainText };

@@ -18,18 +18,43 @@ interface ScrapedLinkedinJob {
 
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 
+export function normalizeJobDescription(value: string): string {
+  const namedEntities: Record<string, string> = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>|<\/li>|<\/div>|<\/h[1-6]>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (entity, code: string) => {
+      if (code.startsWith("#x")) return String.fromCodePoint(Number.parseInt(code.slice(2), 16));
+      if (code.startsWith("#")) return String.fromCodePoint(Number.parseInt(code.slice(1), 10));
+      return namedEntities[code.toLowerCase()] ?? entity;
+    })
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s*\n\s*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 export async function readLinkedinJobDescription(page: Page): Promise<string | null> {
   const structuredDescription = await page.locator('script[type="application/ld+json"]').evaluateAll(
     (scripts) => {
       for (const script of scripts) {
         try {
           const parsed: unknown = JSON.parse(script.textContent ?? "null");
-          const entries: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
-          for (const entry of entries) {
+          const entries: unknown[] = Array.isArray(parsed) ? [...parsed] : [parsed];
+          while (entries.length > 0) {
+            const entry = entries.shift();
             if (typeof entry !== "object" || entry === null) continue;
             const record = entry as Record<string, unknown>;
-            if (record["@type"] === "JobPosting" && typeof record.description === "string") {
-              return record.description;
+            const types = Array.isArray(record["@type"]) ? record["@type"] : [record["@type"]];
+            if (types.includes("JobPosting")) {
+              const sections = [record.description, record.responsibilities, record.qualifications]
+                .flatMap((value) => Array.isArray(value) ? value : [value])
+                .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+              if (sections.length > 0) return sections.join("\n\n");
+            }
+            for (const value of Object.values(record)) {
+              if (Array.isArray(value)) entries.push(...value);
+              else if (typeof value === "object" && value !== null) entries.push(value);
             }
           }
         } catch { /* JSON-LD inválido */ }
@@ -39,21 +64,22 @@ export async function readLinkedinJobDescription(page: Page): Promise<string | n
   );
 
   if (structuredDescription) {
-    const plainText = structuredDescription
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/\s+/g, " ")
-      .trim();
+    const plainText = normalizeJobDescription(structuredDescription);
     if (plainText) return plainText;
   }
 
   const description = page.locator(
-    ".show-more-less-html__markup, .description__text, .jobs-description__content",
+    ".show-more-less-html__markup, .description__text, .jobs-description__content, .jobs-box__html-content, [data-job-description], article [class*='description']",
   ).first();
-  await description.waitFor({ state: "attached", timeout: 4_000 });
-  const text = (await description.innerText()).trim();
-  return text || null;
+  try {
+    await description.waitFor({ state: "attached", timeout: 4_000 });
+    const text = normalizeJobDescription(await description.innerText());
+    if (text) return text;
+  } catch { /* tenta metadados públicos abaixo */ }
+
+  const metadata = await page.locator('meta[property="og:description"], meta[name="description"]').first().getAttribute("content").catch(() => null);
+  const normalizedMetadata = metadata ? normalizeJobDescription(metadata) : "";
+  return normalizedMetadata.length >= 80 ? normalizedMetadata : null;
 }
 
 export async function extractJobDescription(page: Page, url: string): Promise<string | null> {

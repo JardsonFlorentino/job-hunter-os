@@ -21,13 +21,24 @@ export default async function TodayPage() {
   ]);
   const funnel = calculateFunnel(applications, discovered);
   const firstName = profile?.nome.split(" ")[0] ?? "Candidato";
+  const mode = process.env.APPLICATION_MODE ?? "OBSERVE";
+  const killSwitch = process.env.EXTERNAL_ACTIONS_KILL_SWITCH !== "false";
+  const emailAllowed = process.env.ALLOW_EXTERNAL_EMAIL_SEND === "true";
+  const externalActionsBlocked = killSwitch || !emailAllowed;
+  const modeLabel = mode === "PREPARE" ? "PREPARAR E REVISAR" : mode === "AUTO_EMAIL" ? "AUTOMAÇÃO CONTROLADA" : "SOMENTE OBSERVAR";
+  const modeTitle = externalActionsBlocked ? "Robô operando com envios bloqueados" : "Robô em automação controlada";
+  const modeDescription = mode === "PREPARE"
+    ? "Buscando, analisando e preparando materiais. Toda candidatura continua dependendo da sua decisão."
+    : mode === "AUTO_EMAIL" && !externalActionsBlocked
+      ? "Envios são permitidos somente dentro da política, score, allowlist e limite diário configurados."
+      : "Buscando oportunidades sem processar candidaturas ou enviar comunicações externas.";
 
   return <main id="conteudo" className="min-h-screen bg-[#070a10] p-5 text-slate-100 lg:p-8"><div className="mx-auto max-w-7xl">
     <PageHeader eyebrow="Central de comando" title={`Olá, ${firstName}`} description="Estas são as oportunidades e decisões que mais merecem sua atenção agora." />
 
-    <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[.05] p-4"><div><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /><h2 className="font-semibold">Robô em modo seguro</h2></div><p className="mt-1 text-sm text-slate-400">Buscando oportunidades. Nenhum e-mail ou candidatura será enviado automaticamente.</p></div><span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-300">SOMENTE OBSERVAR</span></section>
+    <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[.05] p-4"><div><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /><h2 className="font-semibold">{modeTitle}</h2></div><p className="mt-1 text-sm text-slate-400">{modeDescription}</p><p className="mt-1 text-[11px] text-slate-500">Kill switch: {killSwitch ? "ativo" : "inativo"} · E-mail externo: {emailAllowed ? "permitido" : "bloqueado"}</p></div><span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-300">{modeLabel}</span></section>
 
-    <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-6">{[["Vagas encontradas", funnel.discovered], ["Candidaturas", funnel.applications], ["Respostas", funnel.responses], ["Testes", funnel.tests], ["Entrevistas", funnel.interviews], ["Propostas", funnel.offers]].map(([label, value]) => <div key={label} className="rounded-xl border border-white/10 bg-white/[.025] p-4"><p className="text-[10px] text-slate-500 uppercase">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p></div>)}</section>
+    <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-7">{[["Vagas ativas", funnel.discovered], ["Preparadas", applications.length], ["Enviadas", funnel.applications], ["Respostas", funnel.responses], ["Testes", funnel.tests], ["Entrevistas", funnel.interviews], ["Propostas", funnel.offers]].map(([label, value]) => <div key={label} className="rounded-xl border border-white/10 bg-white/[.025] p-4"><p className="text-[10px] text-slate-500 uppercase">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p></div>)}</section>
 
     <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,.6fr)]"><section className="rounded-2xl border border-orange-400/15 bg-orange-400/[.035] p-5"><div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold">Prioridades de hoje</h2><p className="mt-1 text-xs text-slate-500">Candidaturas que dependem da sua decisão.</p></div><Link href="/action-center" className="text-xs font-semibold text-orange-300 hover:text-orange-200">Ver todas →</Link></div><div className="mt-4 space-y-2">{actions.map((action) => <Link href="/action-center" key={action.id} className="flex items-center justify-between gap-4 rounded-xl bg-black/20 p-3 transition hover:bg-black/30"><div className="min-w-0"><strong className="block truncate text-sm">{action.opportunity.title}</strong><p className="truncate text-xs text-slate-500">{action.opportunity.company.name}</p></div><span className="shrink-0 rounded-full bg-orange-400/10 px-2 py-1 text-[10px] text-orange-300">{applicationStatus[action.status] ?? action.status}</span></Link>)}{actions.length === 0 && <Empty text="Nenhuma decisão pendente. Sua fila está em dia." />}</div></section>
 
