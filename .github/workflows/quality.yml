@@ -27,6 +27,9 @@ jobs:
       - name: Generate backend Prisma Client
         working-directory: backend
         run: npm run db:generate
+      - name: Install Chromium for scraper tests
+        working-directory: backend
+        run: npx playwright install --with-deps chromium
       - name: Backend build, offline tests and coverage
         working-directory: backend
         run: npm run build && npm run test:coverage
