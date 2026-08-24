@@ -75,6 +75,21 @@ describe("callAi", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("pausa imediatamente quando o provedor pede uma espera longa", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(providerError(429, "1766"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(callAi("Analise", undefined, { json: true })).rejects.toMatchObject({
+      name: "AiProviderError",
+      status: 429,
+      retryAfterSeconds: 1766,
+      shouldPauseBatch: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("encaminha failed_generation para o reparador de JSON", async () => {
     const partialGeneration = '{"fit":true,"matchScore":70';
     const fetchMock = vi

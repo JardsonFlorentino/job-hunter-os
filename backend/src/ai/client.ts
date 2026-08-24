@@ -4,6 +4,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RATE_LIMIT_RETRIES = 3;
 const DEFAULT_RETRY_DELAY_MS = 5_000;
 const MAX_RETRY_DELAY_MS = 60_000;
+const MAX_INLINE_RETRY_AFTER_SECONDS = MAX_RETRY_DELAY_MS / 1_000;
 type AiProvider = "groq" | "openrouter";
 type AiRole = "system" | "user";
 
@@ -73,6 +74,15 @@ function retryDelayMs(error: AiProviderError, retryIndex: number): number {
   return Math.min(Math.max(providerDelay, 0), MAX_RETRY_DELAY_MS);
 }
 
+function canRetryRateLimitInline(
+  error: AiProviderError,
+  attempt: number,
+): boolean {
+  if (error.status !== 429 || attempt >= MAX_RATE_LIMIT_RETRIES) return false;
+  return error.retryAfterSeconds === null
+    || error.retryAfterSeconds <= MAX_INLINE_RETRY_AFTER_SECONDS;
+}
+
 export async function callAi(prompt: string, systemPrompt?: string, options: { json?: boolean } = {}): Promise<string> {
   const normalizedPrompt = prompt.trim();
   if (!normalizedPrompt) throw new Error("O prompt enviado ao provedor de IA nao pode estar vazio.");
@@ -135,7 +145,7 @@ export async function callAi(prompt: string, systemPrompt?: string, options: { j
         );
         return error.failedGeneration;
       }
-      if (error instanceof AiProviderError && error.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      if (error instanceof AiProviderError && canRetryRateLimitInline(error, attempt)) {
         const waitMs = retryDelayMs(error, attempt);
         console.warn(`[AI:${settings.provider}] Limite temporario; nova tentativa ${attempt + 1}/${MAX_RATE_LIMIT_RETRIES} em ${Math.ceil(waitMs / 1_000)}s.`);
         await delay(waitMs);
