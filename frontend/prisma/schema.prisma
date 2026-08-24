@@ -1,0 +1,664 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  PENDENTE
+  APLICADO
+  REJEITADO
+  ENTREVISTA
+  TESTES
+  IGNORADO
+  MANUAL
+}
+
+model CandidateProfile {
+  id               String              @id @default(cuid())
+  nome             String
+  email            String              @unique
+  telefone         String?
+  localizacao      String?
+  github           String?
+  linkedin         String?
+  portfolio        String?
+  pretensao_clt    Decimal?            @db.Decimal(12, 2)
+  pretensao_pj     Decimal?            @db.Decimal(12, 2)
+  anos_experiencia Int
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @updatedAt
+  experiences      Experience[]
+  projects         Project[]
+  skills           Skill[]
+  educations       Education[]
+  certifications   Certification[]
+  languages        CandidateLanguage[]
+  job_preference   JobPreference?
+  blocked_items    BlockedPreference[]
+  approved_answers ApprovedAnswer[]
+  evidences        CareerEvidence[]
+  resume_imports   ResumeImport[]
+  applications     Application[]
+  assessments      OpportunityAssessment[]
+  inbox_messages   InboxMessage[]
+
+  @@map("candidate_profiles")
+}
+
+enum SkillLevel {
+  BASICO
+  INTERMEDIARIO
+  AVANCADO
+}
+
+enum LanguageLevel {
+  BASICO
+  INTERMEDIARIO
+  AVANCADO
+  FLUENTE
+  NATIVO
+}
+
+enum BlockedPreferenceType {
+  EMPRESA
+  TECNOLOGIA
+  LOCALIZACAO
+  CONDICAO
+}
+
+model Experience {
+  id           String           @id @default(cuid())
+  profile_id   String
+  title        String
+  company      String
+  start_date   DateTime?
+  end_date     DateTime?
+  current      Boolean          @default(false)
+  description  String           @db.Text
+  achievements String[]
+  technologies String[]
+  approved     Boolean          @default(false)
+  sort_order   Int              @default(0)
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
+  profile      CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id, sort_order])
+  @@map("experiences")
+}
+
+model Project {
+  id           String           @id @default(cuid())
+  profile_id   String
+  name         String
+  summary      String           @db.Text
+  url          String?
+  repository   String?
+  technologies String[]
+  highlights   String[]
+  approved     Boolean          @default(false)
+  sort_order   Int              @default(0)
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
+  profile      CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id, sort_order])
+  @@map("projects")
+}
+
+model Skill {
+  id               String           @id @default(cuid())
+  profile_id       String
+  name             String
+  category         String
+  level            SkillLevel
+  years_experience Decimal?         @db.Decimal(4, 1)
+  approved         Boolean          @default(false)
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  profile          CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([profile_id, name])
+  @@index([profile_id, category])
+  @@map("skills")
+}
+
+model Education {
+  id          String           @id @default(cuid())
+  profile_id  String
+  institution String
+  course      String
+  degree      String?
+  start_date  DateTime?
+  end_date    DateTime?
+  description String?          @db.Text
+  approved    Boolean          @default(false)
+  sort_order  Int              @default(0)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+  profile     CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id, sort_order])
+  @@map("educations")
+}
+
+model Certification {
+  id             String           @id @default(cuid())
+  profile_id     String
+  name           String
+  issuer         String
+  issued_at      DateTime?
+  expires_at     DateTime?
+  credential_url String?
+  approved       Boolean          @default(false)
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
+  profile        CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id])
+  @@map("certifications")
+}
+
+model CandidateLanguage {
+  id         String           @id @default(cuid())
+  profile_id String
+  name       String
+  level      LanguageLevel
+  approved   Boolean          @default(false)
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+  profile    CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([profile_id, name])
+  @@map("candidate_languages")
+}
+
+model JobPreference {
+  id                    String           @id @default(cuid())
+  profile_id            String           @unique
+  target_titles         String[]
+  target_stacks         String[]
+  target_seniorities    String[]
+  contract_types        String[]
+  work_modes            String[]
+  locations             String[]
+  minimum_clt           Decimal?         @db.Decimal(12, 2)
+  minimum_pj            Decimal?         @db.Decimal(12, 2)
+  accepts_international Boolean          @default(false)
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+  profile               CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@map("job_preferences")
+}
+
+model BlockedPreference {
+  id         String                @id @default(cuid())
+  profile_id String
+  type       BlockedPreferenceType
+  value      String
+  reason     String?
+  created_at DateTime              @default(now())
+  profile    CandidateProfile      @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([profile_id, type, value])
+  @@index([profile_id, type])
+  @@map("blocked_preferences")
+}
+
+model ApprovedAnswer {
+  id           String           @id @default(cuid())
+  profile_id   String
+  question_key String
+  question     String
+  answer       String           @db.Text
+  approved     Boolean          @default(false)
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
+  profile      CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([profile_id, question_key])
+  @@index([profile_id, approved])
+  @@map("approved_answers")
+}
+
+model CareerEvidence {
+  id          String   @id @default(cuid())
+  profile_id  String
+  claim       String   @db.Text
+  result      String   @db.Text
+  metric      String?
+  source_url  String?
+  source_note String?  @db.Text
+  approved    Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  profile     CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id, approved])
+  @@map("career_evidences")
+}
+
+enum ResumeImportStatus {
+  PENDING_REVIEW
+  REVIEWED
+  REJECTED
+}
+
+model ResumeImport {
+  id            String             @id @default(cuid())
+  profile_id    String
+  original_name String
+  source_sha256 String             @unique
+  raw_text      String             @db.Text
+  proposals     Json
+  status        ResumeImportStatus @default(PENDING_REVIEW)
+  created_at    DateTime           @default(now())
+  reviewed_at   DateTime?
+  profile       CandidateProfile   @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id, status])
+  @@map("resume_imports")
+}
+
+model Job {
+  id                String     @id @default(cuid())
+  titulo            String
+  empresa           String
+  link              String     @unique
+  localizacao       String?
+  salario_informado String?
+  descricao         String?    @db.Text
+  contato_email     String?
+  matchScore        Int?
+  aiReason          String?
+  status            JobStatus  @default(PENDENTE)
+  created_at        DateTime   @default(now())
+  updated_at        DateTime   @updatedAt
+  email_logs        EmailLog[]
+  opportunity_id    String?
+  opportunity       Opportunity? @relation(fields: [opportunity_id], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([empresa])
+  @@index([contato_email])
+  @@index([opportunity_id])
+  @@map("jobs")
+}
+
+enum JobSourcePlatform {
+  GITHUB
+  LINKEDIN
+  GUPY
+  INDEED
+  GREENHOUSE
+  LEVER
+  ASHBY
+  WORKABLE
+  SMARTRECRUITERS
+  COMPANY_SITE
+  EMAIL
+  OTHER
+}
+
+enum RequirementKind {
+  ESSENTIAL
+  DESIRABLE
+}
+
+enum ApplicationStatus {
+  DRAFT
+  MANUAL_ACTION
+  SUBMITTED
+  TEST
+  INTERVIEW
+  REJECTED
+  WITHDRAWN
+  OFFER
+}
+
+enum ApplicationEventType {
+  CREATED
+  MATERIAL_GENERATED
+  MANUAL_ACTION_REQUIRED
+  SUBMITTED
+  EMAIL_SENT
+  REPLY_RECEIVED
+  STATUS_CHANGED
+  NOTE
+}
+
+enum MaterialType {
+  CV_ATS
+  CV_VISUAL
+  EMAIL
+  COVER_LETTER
+  RECRUITER_MESSAGE
+  FORM_ANSWERS
+}
+
+enum QueueItemStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  DEAD
+}
+
+enum ConnectorRunStatus {
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum OpportunityDecision {
+  APLICAR
+  REVISAR
+  IGNORAR
+}
+
+enum ReplyClassification {
+  CONFIRMACAO
+  REJEICAO
+  TESTE
+  ENTREVISTA
+  AMBIGUO
+  SUSPEITA_FRAUDE
+}
+
+enum FollowUpStatus {
+  DRAFT
+  APPROVED
+  SENT
+  CANCELED
+}
+
+model Company {
+  id            String        @id @default(cuid())
+  name          String
+  normalized_name String      @unique
+  website       String?
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+  opportunities Opportunity[]
+
+  @@map("companies")
+}
+
+model CareerPageTarget {
+  id          String            @id @default(cuid())
+  name        String
+  careers_url String            @unique
+  platform    JobSourcePlatform
+  identifier  String?
+  enabled     Boolean           @default(false)
+  priority    Int               @default(0)
+  notes       String?           @db.Text
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+
+  @@index([enabled, priority])
+  @@index([platform, identifier])
+  @@map("career_page_targets")
+}
+
+model Opportunity {
+  id                  String              @id @default(cuid())
+  company_id          String
+  title               String
+  normalized_title    String
+  location            String?
+  normalized_location String?
+  description         String?             @db.Text
+  description_hash    String?
+  fingerprint         String              @unique
+  contact_email       String?
+  salary_text         String?
+  active              Boolean             @default(true)
+  first_seen_at       DateTime            @default(now())
+  last_seen_at        DateTime            @default(now())
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  company             Company             @relation(fields: [company_id], references: [id], onDelete: Restrict)
+  sources             JobSource[]
+  requirements        Requirement[]
+  applications        Application[]
+  legacy_jobs         Job[]
+  assessments        OpportunityAssessment[]
+
+  @@index([company_id, normalized_title])
+  @@index([active, last_seen_at])
+  @@map("opportunities")
+}
+
+model OpportunityAssessment {
+  id                     String              @id @default(cuid())
+  opportunity_id         String
+  profile_id             String
+  decision               OpportunityDecision
+  match_score            Int
+  description_sufficient Boolean
+  score_breakdown        Json
+  essential_requirements Json
+  desirable_requirements Json
+  strengths              String[]
+  gaps                   String[]
+  risks                  String[]
+  strategy               String              @db.Text
+  reason                 String              @db.Text
+  model                   String
+  prompt_version          String
+  input_hash              String
+  created_at              DateTime            @default(now())
+  opportunity             Opportunity         @relation(fields: [opportunity_id], references: [id], onDelete: Cascade)
+  profile                 CandidateProfile     @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([opportunity_id, profile_id, prompt_version, input_hash])
+  @@index([profile_id, decision, match_score])
+  @@map("opportunity_assessments")
+}
+
+model JobSource {
+  id             String            @id @default(cuid())
+  opportunity_id String
+  platform       JobSourcePlatform
+  external_id    String?
+  canonical_url  String            @unique
+  raw_url        String
+  discovered_at  DateTime          @default(now())
+  last_seen_at   DateTime          @default(now())
+  metadata       Json?
+  opportunity    Opportunity       @relation(fields: [opportunity_id], references: [id], onDelete: Cascade)
+
+  @@unique([platform, external_id])
+  @@index([opportunity_id])
+  @@map("job_sources")
+}
+
+model Requirement {
+  id             String          @id @default(cuid())
+  opportunity_id String
+  kind           RequirementKind
+  text           String          @db.Text
+  normalized_key String?
+  created_at     DateTime        @default(now())
+  opportunity    Opportunity     @relation(fields: [opportunity_id], references: [id], onDelete: Cascade)
+
+  @@index([opportunity_id, kind])
+  @@map("requirements")
+}
+
+model Application {
+  id             String            @id @default(cuid())
+  opportunity_id String
+  profile_id     String
+  status         ApplicationStatus @default(DRAFT)
+  channel        String?
+  submitted_at   DateTime?
+  created_at     DateTime          @default(now())
+  updated_at     DateTime          @updatedAt
+  opportunity    Opportunity       @relation(fields: [opportunity_id], references: [id], onDelete: Restrict)
+  profile        CandidateProfile  @relation(fields: [profile_id], references: [id], onDelete: Restrict)
+  events         ApplicationEvent[]
+  materials      GeneratedMaterial[]
+  inbox_messages InboxMessage[]
+  follow_ups     FollowUp[]
+  interviews     Interview[]
+  next_action    String?
+  due_at         DateTime?
+  contact_name   String?
+  contact_email  String?
+
+  @@unique([opportunity_id, profile_id])
+  @@index([profile_id, status])
+  @@map("applications")
+}
+
+model InboxMessage {
+  id             String              @id @default(cuid())
+  profile_id     String
+  application_id String?
+  message_id     String              @unique
+  sender         String
+  subject        String?
+  body_text      String              @db.Text
+  classification ReplyClassification
+  fraud_signals  String[]
+  received_at    DateTime
+  created_at     DateTime            @default(now())
+  profile        CandidateProfile    @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  application    Application?        @relation(fields: [application_id], references: [id], onDelete: SetNull)
+
+  @@index([profile_id, received_at])
+  @@index([application_id])
+  @@map("inbox_messages")
+}
+
+model FollowUp {
+  id             String         @id @default(cuid())
+  application_id String
+  status         FollowUpStatus @default(DRAFT)
+  sequence       Int
+  subject        String
+  body           String         @db.Text
+  scheduled_at   DateTime
+  approved_at    DateTime?
+  sent_at        DateTime?
+  created_at     DateTime       @default(now())
+  application    Application    @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@unique([application_id, sequence])
+  @@index([status, scheduled_at])
+  @@map("follow_ups")
+}
+
+model Interview {
+  id             String      @id @default(cuid())
+  application_id String
+  stage          String
+  scheduled_at   DateTime?
+  deadline_at    DateTime?
+  contact_name   String?
+  contact_email  String?
+  meeting_url    String?
+  notes          String?     @db.Text
+  feedback       String?     @db.Text
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+  application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@index([scheduled_at])
+  @@map("interviews")
+}
+
+model ApplicationEvent {
+  id             String               @id @default(cuid())
+  application_id String
+  type           ApplicationEventType
+  from_status    ApplicationStatus?
+  to_status      ApplicationStatus?
+  message        String?              @db.Text
+  metadata       Json?
+  occurred_at    DateTime             @default(now())
+  application    Application          @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@index([application_id, occurred_at])
+  @@map("application_events")
+}
+
+model GeneratedMaterial {
+  id             String       @id @default(cuid())
+  application_id String
+  type           MaterialType
+  version        Int
+  content_text   String?      @db.Text
+  content_data   Bytes?
+  content_hash   String
+  model          String?
+  prompt_version String?
+  created_at     DateTime     @default(now())
+  application    Application  @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@unique([application_id, type, version])
+  @@index([application_id, type])
+  @@map("generated_materials")
+}
+
+model ConnectorRun {
+  id             String             @id @default(cuid())
+  connector      String
+  status         ConnectorRunStatus @default(RUNNING)
+  discovered     Int                @default(0)
+  enriched       Int                @default(0)
+  persisted      Int                @default(0)
+  error_count    Int                @default(0)
+  error_message  String?            @db.Text
+  started_at     DateTime           @default(now())
+  finished_at    DateTime?
+
+  @@index([connector, started_at])
+  @@map("connector_runs")
+}
+
+model QueueItem {
+  id             String          @id @default(cuid())
+  type           String
+  dedupe_key     String          @unique
+  payload        Json
+  status         QueueItemStatus @default(PENDING)
+  attempts       Int             @default(0)
+  max_attempts   Int             @default(5)
+  next_attempt_at DateTime       @default(now())
+  locked_at      DateTime?
+  locked_by      String?
+  last_error     String?         @db.Text
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @updatedAt
+  completed_at   DateTime?
+
+  @@index([status, next_attempt_at])
+  @@index([locked_at])
+  @@map("queue_items")
+}
+
+model EmailLog {
+  id           String   @id @default(cuid())
+  job_id       String
+  destinatario String
+  assunto      String
+  corpo        String   @db.Text
+  message_id   String?
+  enviado_em   DateTime @default(now())
+  sucesso      Boolean  @default(false)
+  erro         String?  @db.Text
+  job          Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+
+  @@index([job_id])
+  @@index([enviado_em])
+  @@map("email_logs")
+}

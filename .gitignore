@@ -1,0 +1,34 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!deploy/.env.example
+
+# Dependencies and generated output
+node_modules/
+dist/
+.next/
+coverage/
+backups/
+.env.demo.local
+backend/src/career-dna/apply-reviewed-resume.ts
+
+# Private documents and database exports
+*.pdf
+*.doc
+*.docx
+*.dump
+*.backup
+*.sqlite
+*.sqlite3
+*.db
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs and local tooling
+*.log
+.DS_Store
+.idea/
+.vscode/

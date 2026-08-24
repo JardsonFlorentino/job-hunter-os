@@ -1,0 +1,98 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            extension/package-lock.json
+      - name: Backend dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Generate backend Prisma Client
+        working-directory: backend
+        run: npm run db:generate
+      - name: Backend build, offline tests and coverage
+        working-directory: backend
+        run: npm run build && npm run test:coverage
+      - name: Frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Generate frontend Prisma Client
+        working-directory: frontend
+        run: npm run db:generate
+      - name: Frontend tests, lint and build
+        working-directory: frontend
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+        run: npm run test && npm run lint && npm run build
+      - name: Extension dependencies and build
+        working-directory: extension
+        run: npm ci && npm run build
+
+  demo-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: demo
+          POSTGRES_PASSWORD: demo_local_only
+          POSTGRES_DB: job_hunter_demo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U demo -d job_hunter_demo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://demo:demo_local_only@localhost:5432/job_hunter_demo?schema=public
+      DEMO_DATABASE_URL: postgresql://demo:demo_local_only@localhost:5432/job_hunter_demo?schema=public
+      DEMO_BASE_URL: http://localhost:3001
+      DEMO_AUTH_PASSWORD: demo_local_password
+      AUTH_PASSWORD: demo_local_password
+      AUTH_SECRET: demo_ci_secret_with_at_least_32_characters
+      DRY_RUN: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare fictitious database
+        working-directory: backend
+        run: |
+          npm ci
+          npm run db:generate
+          npx prisma migrate deploy --schema=src/prisma/schema.prisma
+          TEST_DATABASE_URL="$DATABASE_URL" npm test -- --no-file-parallelism src/jobs/job-repository.integration.test.ts src/opportunities/opportunity-repository.integration.test.ts src/queue/queue-service.integration.test.ts src/materials/repository.integration.test.ts
+          npm run demo:seed
+          npx playwright install --with-deps chromium
+      - name: Start demo frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run db:generate
+          npm run dev -- -p 3001 > /tmp/job-hunter-demo.log 2>&1 &
+          for attempt in {1..30}; do curl --fail http://localhost:3001/today && exit 0; sleep 2; done
+          cat /tmp/job-hunter-demo.log
+          exit 1
+      - name: Run safe browser journey
+        working-directory: backend
+        run: npm run demo:e2e

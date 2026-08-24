@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: job-hunter-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
+      POSTGRES_DB: ${POSTGRES_DB:-jobhunter}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  adminer:
+    image: adminer:latest
+    container_name: job-hunter-adminer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:8080:8080"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: job-hunter-backend
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}@postgres:5432/${POSTGRES_DB:-jobhunter}?schema=public
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-3.7-flash}
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: job-hunter-frontend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}@postgres:5432/${POSTGRES_DB:-jobhunter}?schema=public
+      AUTH_PASSWORD: ${AUTH_PASSWORD:?Defina AUTH_PASSWORD no arquivo .env}
+      AUTH_SECRET: ${AUTH_SECRET:?Defina AUTH_SECRET no arquivo .env}
+      AUTH_LOGIN_RATE_LIMIT: ${AUTH_LOGIN_RATE_LIMIT:-5}
+      API_READ_RATE_LIMIT: ${API_READ_RATE_LIMIT:-120}
+      API_WRITE_RATE_LIMIT: ${API_WRITE_RATE_LIMIT:-30}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:3000:3000"
+
+volumes:
+  postgres_data:
+    name: job-hunter-postgres-data

@@ -1,0 +1,52 @@
+{
+  "name": "job-hunter-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary",
+    "test:watch": "vitest",
+    "start": "node dist/worker.js",
+    "db:generate": "prisma generate --schema=src/prisma/schema.prisma",
+    "db:push": "prisma db push --schema=src/prisma/schema.prisma",
+    "career:import-resume": "tsx src/career-dna/import-resume.ts",
+    "db:migrate-legacy-jobs": "tsx src/opportunities/migrate-legacy-jobs.ts",
+    "db:audit-opportunities": "tsx src/opportunities/audit.ts",
+    "ops:preflight": "npm run build && node dist/operations/preflight.js",
+    "ops:connector-canary": "npm run build && node dist/operations/connector-canary.js",
+    "ops:ai-canary": "npm run build && node dist/operations/ai-canary.js",
+    "ops:seed-suggested-targets": "npm run build && node dist/operations/seed-suggested-targets.js",
+    "demo:seed": "npm run build && node dist/demo/seed-demo.js",
+    "demo:screenshots": "npm run build && node dist/demo/capture-screenshots.js",
+    "demo:e2e": "npm run build && node dist/demo/e2e-demo.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.12.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "imapflow": "^1.7.2",
+    "mailparser": "^3.9.15",
+    "nodemailer": "^9.0.5",
+    "pdf-parse": "^2.4.5",
+    "playwright": "^1.62.1",
+    "puppeteer": "^25.8.0",
+    "zod": "^4.4.3"
+  },
+  "overrides": {
+    "html-to-text": "10.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^26.2.0",
+    "@types/nodemailer": "^8.0.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "prisma": "^6.12.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

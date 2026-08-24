@@ -1,0 +1,63 @@
+services:
+  postgres_demo:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo_local_only
+      POSTGRES_DB: job_hunter_demo
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d job_hunter_demo"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - job_hunter_demo_data:/var/lib/postgresql/data
+
+  backend_demo:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://demo:demo_local_only@postgres_demo:5432/job_hunter_demo?schema=public
+      DRY_RUN: "true"
+      ENABLE_IMAP: "false"
+      ENABLE_GITHUB_SCRAPER: "false"
+      ENABLE_LINKEDIN_SCRAPER: "false"
+      ENABLE_ATS_CONNECTORS: "false"
+      ENABLE_JOB_PROCESSING: "false"
+      ENABLE_FOLLOWUP_DRAFTS: "false"
+    depends_on:
+      postgres_demo:
+        condition: service_healthy
+    restart: "no"
+
+  frontend_demo:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://demo:demo_local_only@postgres_demo:5432/job_hunter_demo?schema=public
+      AUTH_PASSWORD: demo_local_password
+      AUTH_SECRET: demo_local_secret_with_at_least_32_characters
+      AUTH_LOGIN_RATE_LIMIT: 20
+      API_READ_RATE_LIMIT: 500
+      API_WRITE_RATE_LIMIT: 100
+      TRUST_PROXY: "false"
+    depends_on:
+      postgres_demo:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3002:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/today').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: "no"
+
+volumes:
+  job_hunter_demo_data:

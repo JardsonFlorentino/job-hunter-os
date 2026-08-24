@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.*
+npm-debug.log*
+src/career-dna/apply-reviewed-resume.ts
+*.pdf
+*.doc
+*.docx
+*.dump
+*.backup

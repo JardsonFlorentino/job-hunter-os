@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Job Hunter OS Assistant",
+  "version": "0.1.0",
+  "description": "Assistente local para revisar e preencher candidaturas com fatos aprovados.",
+  "permissions": ["storage"],
+  "host_permissions": ["http://localhost:3000/*"],
+  "content_scripts": [{
+    "matches": ["https://*.linkedin.com/*", "https://*.gupy.io/*", "https://*.indeed.com/*", "https://*.greenhouse.io/*", "https://*.lever.co/*", "https://*.ashbyhq.com/*", "https://*.smartrecruiters.com/*", "https://*.workable.com/*"],
+    "js": ["dist/content.js"],
+    "run_at": "document_idle"
+  }]
+}

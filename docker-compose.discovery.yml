@@ -1,0 +1,14 @@
+services:
+  backend:
+    environment:
+      DRY_RUN: "true"
+      APPLICATION_MODE: OBSERVE
+      EXTERNAL_ACTIONS_KILL_SWITCH: "true"
+      ALLOW_EXTERNAL_EMAIL_SEND: "false"
+      MAX_APPLICATIONS_PER_DAY: "0"
+      ENABLE_IMAP: "false"
+      ENABLE_GITHUB_SCRAPER: "true"
+      ENABLE_LINKEDIN_SCRAPER: "true"
+      ENABLE_ATS_CONNECTORS: "false"
+      ENABLE_JOB_PROCESSING: "false"
+      ENABLE_FOLLOWUP_DRAFTS: "false"
