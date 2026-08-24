@@ -10,10 +10,20 @@ const trueByDefault = z
   .default("true")
   .transform((value) => value === "true");
 
-const commaList = z.string().default("").transform((value) => value.split(",").map((item) => item.trim()).filter(Boolean));
+const commaList = z
+  .string()
+  .default("")
+  .transform((value) =>
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
 
 const environmentSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
   DATABASE_URL: z.string().url().startsWith("postgresql://"),
   AI_PROVIDER: z.enum(["groq", "openrouter"]).default("groq"),
   GROQ_API_KEY: z.string().min(1).optional(),
@@ -32,8 +42,15 @@ const environmentSchema = z.object({
   IMAP_TLS: trueByDefault,
   IMAP_USER: z.string().email().optional(),
   IMAP_PASSWORD: z.string().min(1).optional(),
+  IMAP_SINCE_DATE: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "deve usar o formato YYYY-MM-DD")
+    .default("2026-08-28"),
+  IMAP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(50),
   DRY_RUN: booleanValue,
-  APPLICATION_MODE: z.enum(["OBSERVE", "PREPARE", "AUTO_EMAIL"]).default("OBSERVE"),
+  APPLICATION_MODE: z
+    .enum(["OBSERVE", "PREPARE", "AUTO_EMAIL"])
+    .default("OBSERVE"),
   EXTERNAL_ACTIONS_KILL_SWITCH: trueByDefault,
   ALLOW_EXTERNAL_EMAIL_SEND: booleanValue,
   MAX_APPLICATIONS_PER_DAY: z.coerce.number().int().min(0).max(100).default(0),
@@ -78,11 +95,16 @@ export function parseRuntimeConfig(
     throw new Error(`[Config] Variáveis de ambiente inválidas: ${details}`);
   }
 
-  const config = result.data.AI_PROVIDER === "groq"
-    ? { ...result.data, OPENROUTER_MODEL: result.data.GROQ_MODEL }
-    : result.data;
+  const config =
+    result.data.AI_PROVIDER === "groq"
+      ? { ...result.data, OPENROUTER_MODEL: result.data.GROQ_MODEL }
+      : result.data;
   if (config.ENABLE_JOB_PROCESSING) {
-    requireFields(config, [config.AI_PROVIDER === "groq" ? "GROQ_API_KEY" : "OPENROUTER_API_KEY"], "processamento de vagas");
+    requireFields(
+      config,
+      [config.AI_PROVIDER === "groq" ? "GROQ_API_KEY" : "OPENROUTER_API_KEY"],
+      "processamento de vagas",
+    );
   }
   if (config.ENABLE_IMAP && !config.DRY_RUN) {
     requireFields(
@@ -100,11 +122,22 @@ export function parseRuntimeConfig(
   }
 
   if (config.APPLICATION_MODE === "AUTO_EMAIL") {
-    if (config.DRY_RUN || config.EXTERNAL_ACTIONS_KILL_SWITCH || !config.ALLOW_EXTERNAL_EMAIL_SEND) {
-      throw new Error("[Config] AUTO_EMAIL exige DRY_RUN=false, kill switch desligado e ALLOW_EXTERNAL_EMAIL_SEND=true.");
+    if (
+      config.DRY_RUN ||
+      config.EXTERNAL_ACTIONS_KILL_SWITCH ||
+      !config.ALLOW_EXTERNAL_EMAIL_SEND
+    ) {
+      throw new Error(
+        "[Config] AUTO_EMAIL exige DRY_RUN=false, kill switch desligado e ALLOW_EXTERNAL_EMAIL_SEND=true.",
+      );
     }
-    if (config.MAX_APPLICATIONS_PER_DAY < 1 || config.AUTO_EMAIL_COMPANY_ALLOWLIST.length < 1) {
-      throw new Error("[Config] AUTO_EMAIL exige limite diario positivo e allowlist de empresas.");
+    if (
+      config.MAX_APPLICATIONS_PER_DAY < 1 ||
+      config.AUTO_EMAIL_COMPANY_ALLOWLIST.length < 1
+    ) {
+      throw new Error(
+        "[Config] AUTO_EMAIL exige limite diario positivo e allowlist de empresas.",
+      );
     }
   }
 

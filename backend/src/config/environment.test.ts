@@ -16,6 +16,8 @@ describe("parseRuntimeConfig", () => {
     expect(config.DRY_RUN).toBe(true);
     expect(config.SMTP_PORT).toBe(587);
     expect(config.IMAP_PORT).toBe(993);
+    expect(config.IMAP_SINCE_DATE).toBe("2026-08-28");
+    expect(config.IMAP_BATCH_SIZE).toBe(50);
     expect(config.ENABLE_GITHUB_SCRAPER).toBe(false);
     expect(config.ENABLE_LINKEDIN_SCRAPER).toBe(false);
     expect(config.ENABLE_IMAP).toBe(false);
@@ -25,13 +27,20 @@ describe("parseRuntimeConfig", () => {
 
   it("rejeita URL de banco fora do PostgreSQL", () => {
     expect(() =>
-      parseRuntimeConfig({ ...baseEnvironment, DATABASE_URL: "mysql://localhost/db" }),
+      parseRuntimeConfig({
+        ...baseEnvironment,
+        DATABASE_URL: "mysql://localhost/db",
+      }),
     ).toThrow("Variáveis de ambiente inválidas");
   });
 
   it("exige credenciais externas quando DRY_RUN está desativado", () => {
     expect(() =>
-      parseRuntimeConfig({ ...baseEnvironment, DRY_RUN: "false", ENABLE_IMAP: "true" }),
+      parseRuntimeConfig({
+        ...baseEnvironment,
+        DRY_RUN: "false",
+        ENABLE_IMAP: "true",
+      }),
     ).toThrow("leitura IMAP requer as variáveis");
   });
 
@@ -61,11 +70,13 @@ describe("parseRuntimeConfig", () => {
   });
 
   it("bloqueia processamento Groq sem GROQ_API_KEY", () => {
-    expect(() => parseRuntimeConfig({
-      DATABASE_URL: baseEnvironment.DATABASE_URL,
-      AI_PROVIDER: "groq",
-      ENABLE_JOB_PROCESSING: "true",
-      DRY_RUN: "true",
-    })).toThrow("GROQ_API_KEY");
+    expect(() =>
+      parseRuntimeConfig({
+        DATABASE_URL: baseEnvironment.DATABASE_URL,
+        AI_PROVIDER: "groq",
+        ENABLE_JOB_PROCESSING: "true",
+        DRY_RUN: "true",
+      }),
+    ).toThrow("GROQ_API_KEY");
   });
 });

@@ -18,19 +18,19 @@ enum JobStatus {
 }
 
 model CandidateProfile {
-  id               String   @id @default(cuid())
+  id               String                  @id @default(cuid())
   nome             String
-  email            String   @unique
+  email            String                  @unique
   telefone         String?
   localizacao      String?
   github           String?
   linkedin         String?
   portfolio        String?
-  pretensao_clt    Decimal? @db.Decimal(12, 2)
-  pretensao_pj     Decimal? @db.Decimal(12, 2)
+  pretensao_clt    Decimal?                @db.Decimal(12, 2)
+  pretensao_pj     Decimal?                @db.Decimal(12, 2)
   anos_experiencia Int
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
+  created_at       DateTime                @default(now())
+  updated_at       DateTime                @updatedAt
   experiences      Experience[]
   projects         Project[]
   skills           Skill[]
@@ -71,39 +71,39 @@ enum BlockedPreferenceType {
 }
 
 model Experience {
-  id          String   @id @default(cuid())
-  profile_id  String
-  title       String
-  company     String
-  start_date  DateTime?
-  end_date    DateTime?
-  current     Boolean  @default(false)
-  description String   @db.Text
+  id           String           @id @default(cuid())
+  profile_id   String
+  title        String
+  company      String
+  start_date   DateTime?
+  end_date     DateTime?
+  current      Boolean          @default(false)
+  description  String           @db.Text
   achievements String[]
   technologies String[]
-  approved    Boolean  @default(false)
-  sort_order  Int      @default(0)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-  profile     CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  approved     Boolean          @default(false)
+  sort_order   Int              @default(0)
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
+  profile      CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@index([profile_id, sort_order])
   @@map("experiences")
 }
 
 model Project {
-  id           String   @id @default(cuid())
+  id           String           @id @default(cuid())
   profile_id   String
   name         String
-  summary      String   @db.Text
+  summary      String           @db.Text
   url          String?
   repository   String?
   technologies String[]
   highlights   String[]
-  approved     Boolean  @default(false)
-  sort_order   Int      @default(0)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  approved     Boolean          @default(false)
+  sort_order   Int              @default(0)
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
   profile      CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@index([profile_id, sort_order])
@@ -111,15 +111,15 @@ model Project {
 }
 
 model Skill {
-  id               String     @id @default(cuid())
+  id               String           @id @default(cuid())
   profile_id       String
   name             String
   category         String
   level            SkillLevel
-  years_experience Decimal?   @db.Decimal(4, 1)
-  approved         Boolean    @default(false)
-  created_at       DateTime   @default(now())
-  updated_at       DateTime   @updatedAt
+  years_experience Decimal?         @db.Decimal(4, 1)
+  approved         Boolean          @default(false)
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
   profile          CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@unique([profile_id, name])
@@ -128,18 +128,18 @@ model Skill {
 }
 
 model Education {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   profile_id  String
   institution String
   course      String
   degree      String?
   start_date  DateTime?
   end_date    DateTime?
-  description String?  @db.Text
-  approved    Boolean  @default(false)
-  sort_order  Int      @default(0)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  description String?          @db.Text
+  approved    Boolean          @default(false)
+  sort_order  Int              @default(0)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
   profile     CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@index([profile_id, sort_order])
@@ -147,16 +147,16 @@ model Education {
 }
 
 model Certification {
-  id             String   @id @default(cuid())
+  id             String           @id @default(cuid())
   profile_id     String
   name           String
   issuer         String
   issued_at      DateTime?
   expires_at     DateTime?
   credential_url String?
-  approved       Boolean  @default(false)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  approved       Boolean          @default(false)
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
   profile        CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@index([profile_id])
@@ -164,13 +164,13 @@ model Certification {
 }
 
 model CandidateLanguage {
-  id         String        @id @default(cuid())
+  id         String           @id @default(cuid())
   profile_id String
   name       String
   level      LanguageLevel
-  approved   Boolean       @default(false)
-  created_at DateTime      @default(now())
-  updated_at DateTime      @updatedAt
+  approved   Boolean          @default(false)
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
   profile    CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@unique([profile_id, name])
@@ -178,19 +178,19 @@ model CandidateLanguage {
 }
 
 model JobPreference {
-  id                    String   @id @default(cuid())
-  profile_id            String   @unique
+  id                    String           @id @default(cuid())
+  profile_id            String           @unique
   target_titles         String[]
   target_stacks         String[]
   target_seniorities    String[]
   contract_types        String[]
   work_modes            String[]
   locations             String[]
-  minimum_clt           Decimal? @db.Decimal(12, 2)
-  minimum_pj            Decimal? @db.Decimal(12, 2)
-  accepts_international Boolean  @default(false)
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
+  minimum_clt           Decimal?         @db.Decimal(12, 2)
+  minimum_pj            Decimal?         @db.Decimal(12, 2)
+  accepts_international Boolean          @default(false)
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
   profile               CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@map("job_preferences")
@@ -203,7 +203,7 @@ model BlockedPreference {
   value      String
   reason     String?
   created_at DateTime              @default(now())
-  profile    CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  profile    CandidateProfile      @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@unique([profile_id, type, value])
   @@index([profile_id, type])
@@ -211,14 +211,14 @@ model BlockedPreference {
 }
 
 model ApprovedAnswer {
-  id           String   @id @default(cuid())
+  id           String           @id @default(cuid())
   profile_id   String
   question_key String
   question     String
-  answer       String   @db.Text
-  approved     Boolean  @default(false)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  answer       String           @db.Text
+  approved     Boolean          @default(false)
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
   profile      CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@unique([profile_id, question_key])
@@ -227,16 +227,16 @@ model ApprovedAnswer {
 }
 
 model CareerEvidence {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   profile_id  String
-  claim       String   @db.Text
-  result      String   @db.Text
+  claim       String           @db.Text
+  result      String           @db.Text
   metric      String?
   source_url  String?
-  source_note String?  @db.Text
-  approved    Boolean  @default(false)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  source_note String?          @db.Text
+  approved    Boolean          @default(false)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
   profile     CandidateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@index([profile_id, approved])
@@ -266,19 +266,19 @@ model ResumeImport {
 }
 
 model Job {
-  id                String      @id @default(cuid())
+  id                String       @id @default(cuid())
   titulo            String
   empresa           String
-  link              String      @unique
+  link              String       @unique
   localizacao       String?
   salario_informado String?
-  descricao         String?     @db.Text
+  descricao         String?      @db.Text
   contato_email     String?
   matchScore        Int?
   aiReason          String?
-  status            JobStatus   @default(PENDENTE)
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
+  status            JobStatus    @default(PENDENTE)
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
   email_logs        EmailLog[]
   opportunity_id    String?
   opportunity       Opportunity? @relation(fields: [opportunity_id], references: [id], onDelete: SetNull)
@@ -379,13 +379,13 @@ enum FollowUpStatus {
 }
 
 model Company {
-  id            String        @id @default(cuid())
-  name          String
-  normalized_name String      @unique
-  website       String?
-  created_at    DateTime      @default(now())
-  updated_at    DateTime      @updatedAt
-  opportunities Opportunity[]
+  id              String        @id @default(cuid())
+  name            String
+  normalized_name String        @unique
+  website         String?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+  opportunities   Opportunity[]
 
   @@map("companies")
 }
@@ -408,28 +408,28 @@ model CareerPageTarget {
 }
 
 model Opportunity {
-  id                  String              @id @default(cuid())
+  id                  String                  @id @default(cuid())
   company_id          String
   title               String
   normalized_title    String
   location            String?
   normalized_location String?
-  description         String?             @db.Text
+  description         String?                 @db.Text
   description_hash    String?
-  fingerprint         String              @unique
+  fingerprint         String                  @unique
   contact_email       String?
   salary_text         String?
-  active              Boolean             @default(true)
-  first_seen_at       DateTime            @default(now())
-  last_seen_at        DateTime            @default(now())
-  created_at          DateTime            @default(now())
-  updated_at          DateTime            @updatedAt
-  company             Company             @relation(fields: [company_id], references: [id], onDelete: Restrict)
+  active              Boolean                 @default(true)
+  first_seen_at       DateTime                @default(now())
+  last_seen_at        DateTime                @default(now())
+  created_at          DateTime                @default(now())
+  updated_at          DateTime                @updatedAt
+  company             Company                 @relation(fields: [company_id], references: [id], onDelete: Restrict)
   sources             JobSource[]
   requirements        Requirement[]
   applications        Application[]
   legacy_jobs         Job[]
-  assessments        OpportunityAssessment[]
+  assessments         OpportunityAssessment[]
 
   @@index([company_id, normalized_title])
   @@index([active, last_seen_at])
@@ -451,12 +451,12 @@ model OpportunityAssessment {
   risks                  String[]
   strategy               String              @db.Text
   reason                 String              @db.Text
-  model                   String
-  prompt_version          String
-  input_hash              String
-  created_at              DateTime            @default(now())
-  opportunity             Opportunity         @relation(fields: [opportunity_id], references: [id], onDelete: Cascade)
-  profile                 CandidateProfile     @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  model                  String
+  prompt_version         String
+  input_hash             String
+  created_at             DateTime            @default(now())
+  opportunity            Opportunity         @relation(fields: [opportunity_id], references: [id], onDelete: Cascade)
+  profile                CandidateProfile    @relation(fields: [profile_id], references: [id], onDelete: Cascade)
 
   @@unique([opportunity_id, profile_id, prompt_version, input_hash])
   @@index([profile_id, decision, match_score])
@@ -494,16 +494,16 @@ model Requirement {
 }
 
 model Application {
-  id             String            @id @default(cuid())
+  id             String              @id @default(cuid())
   opportunity_id String
   profile_id     String
-  status         ApplicationStatus @default(DRAFT)
+  status         ApplicationStatus   @default(DRAFT)
   channel        String?
   submitted_at   DateTime?
-  created_at     DateTime          @default(now())
-  updated_at     DateTime          @updatedAt
-  opportunity    Opportunity       @relation(fields: [opportunity_id], references: [id], onDelete: Restrict)
-  profile        CandidateProfile  @relation(fields: [profile_id], references: [id], onDelete: Restrict)
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+  opportunity    Opportunity         @relation(fields: [opportunity_id], references: [id], onDelete: Restrict)
+  profile        CandidateProfile    @relation(fields: [profile_id], references: [id], onDelete: Restrict)
   events         ApplicationEvent[]
   materials      GeneratedMaterial[]
   inbox_messages InboxMessage[]
@@ -537,6 +537,18 @@ model InboxMessage {
   @@index([profile_id, received_at])
   @@index([application_id])
   @@map("inbox_messages")
+}
+
+model ImapCheckpoint {
+  id         String   @id @default(cuid())
+  account    String
+  mailbox    String   @default("INBOX")
+  last_uid   Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([account, mailbox])
+  @@map("imap_checkpoints")
 }
 
 model FollowUp {
@@ -610,36 +622,36 @@ model GeneratedMaterial {
 }
 
 model ConnectorRun {
-  id             String             @id @default(cuid())
-  connector      String
-  status         ConnectorRunStatus @default(RUNNING)
-  discovered     Int                @default(0)
-  enriched       Int                @default(0)
-  persisted      Int                @default(0)
-  error_count    Int                @default(0)
-  error_message  String?            @db.Text
-  started_at     DateTime           @default(now())
-  finished_at    DateTime?
+  id            String             @id @default(cuid())
+  connector     String
+  status        ConnectorRunStatus @default(RUNNING)
+  discovered    Int                @default(0)
+  enriched      Int                @default(0)
+  persisted     Int                @default(0)
+  error_count   Int                @default(0)
+  error_message String?            @db.Text
+  started_at    DateTime           @default(now())
+  finished_at   DateTime?
 
   @@index([connector, started_at])
   @@map("connector_runs")
 }
 
 model QueueItem {
-  id             String          @id @default(cuid())
-  type           String
-  dedupe_key     String          @unique
-  payload        Json
-  status         QueueItemStatus @default(PENDING)
-  attempts       Int             @default(0)
-  max_attempts   Int             @default(5)
-  next_attempt_at DateTime       @default(now())
-  locked_at      DateTime?
-  locked_by      String?
-  last_error     String?         @db.Text
-  created_at     DateTime        @default(now())
-  updated_at     DateTime        @updatedAt
-  completed_at   DateTime?
+  id              String          @id @default(cuid())
+  type            String
+  dedupe_key      String          @unique
+  payload         Json
+  status          QueueItemStatus @default(PENDING)
+  attempts        Int             @default(0)
+  max_attempts    Int             @default(5)
+  next_attempt_at DateTime        @default(now())
+  locked_at       DateTime?
+  locked_by       String?
+  last_error      String?         @db.Text
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  completed_at    DateTime?
 
   @@index([status, next_attempt_at])
   @@index([locked_at])
