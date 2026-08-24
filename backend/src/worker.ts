@@ -24,6 +24,7 @@ import { errorDetails, logger } from "./observability/logger.js";
 
 const prisma = new PrismaClient();
 const LOOP_INTERVAL_MS = 3 * 60 * 60 * 1_000;
+const AI_INTER_JOB_DELAY_MS = 1_000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function buildJobContext(job: Job): string {
@@ -214,6 +215,7 @@ export async function processPendingJobs(): Promise<void> {
   for (const job of pendingJobs) {
     try {
       await processJob(job, profile, careerContext);
+      await delay(AI_INTER_JOB_DELAY_MS);
     } catch (error: unknown) {
       logger.error({ event: "job.processing_failed", jobId: job.id, alert: true, ...errorDetails(error) }, "Falha ao processar vaga.");
       if (error instanceof AiProviderError && error.shouldPauseBatch) {

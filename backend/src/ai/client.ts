@@ -1,6 +1,9 @@
 import "dotenv/config";
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_RATE_LIMIT_RETRIES = 3;
+const DEFAULT_RETRY_DELAY_MS = 5_000;
+const MAX_RETRY_DELAY_MS = 60_000;
 type AiProvider = "groq" | "openrouter";
 type AiRole = "system" | "user";
 
@@ -52,6 +55,18 @@ export function configuredAiModel(): string {
     : process.env.OPENROUTER_MODEL?.trim() || "google/gemini-3.7-flash";
 }
 
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function retryDelayMs(error: AiProviderError, retryIndex: number): number {
+  const providerDelay = error.retryAfterSeconds === null
+    ? DEFAULT_RETRY_DELAY_MS * 2 ** retryIndex
+    : Math.ceil(error.retryAfterSeconds * 1_000);
+
+  return Math.min(Math.max(providerDelay, 0), MAX_RETRY_DELAY_MS);
+}
+
 export async function callAi(prompt: string, systemPrompt?: string, options: { json?: boolean } = {}): Promise<string> {
   const normalizedPrompt = prompt.trim();
   if (!normalizedPrompt) throw new Error("O prompt enviado ao provedor de IA nao pode estar vazio.");
@@ -63,36 +78,48 @@ export async function callAi(prompt: string, systemPrompt?: string, options: { j
     model: settings.model, messages, temperature: 0.2, max_tokens: 1_600,
     ...(options.json ? { response_format: { type: "json_object" as const } } : {}),
   };
-  const abortController = new AbortController();
-  const timeout = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const response = await fetch(settings.endpoint, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${settings.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody), signal: abortController.signal,
-    });
-    if (!response.ok) {
-      const errorBody = await response.text();
-      let details = response.statusText;
-      try {
-        const parsed: unknown = JSON.parse(errorBody);
-        if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === "string") details = parsed.error.message;
-      } catch { /* corpo nao estruturado */ }
-      const retryAfter = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
-      throw new AiProviderError(settings.provider, response.status, Number.isFinite(retryAfter) ? retryAfter : null, `${settings.provider} HTTP ${response.status}: ${details}`);
+
+  for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt += 1) {
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(settings.endpoint, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${settings.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody), signal: abortController.signal,
+      });
+      if (!response.ok) {
+        const errorBody = await response.text();
+        let details = response.statusText;
+        try {
+          const parsed: unknown = JSON.parse(errorBody);
+          if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === "string") details = parsed.error.message;
+        } catch { /* corpo nao estruturado */ }
+        const retryAfter = Number.parseFloat(response.headers.get("retry-after") ?? "");
+        throw new AiProviderError(settings.provider, response.status, Number.isFinite(retryAfter) ? retryAfter : null, `${settings.provider} HTTP ${response.status}: ${details}`);
+      }
+      const responseBody: unknown = await response.json();
+      if (!isAiResponse(responseBody)) throw new Error(`${settings.provider} retornou resposta em formato invalido.`);
+      const content = responseBody.choices[0]?.message.content.trim();
+      if (!content) throw new Error(`${settings.provider} retornou resposta vazia.`);
+      return content;
+    } catch (error: unknown) {
+      if (error instanceof AiProviderError && error.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+        const waitMs = retryDelayMs(error, attempt);
+        console.warn(`[AI:${settings.provider}] Limite temporario; nova tentativa ${attempt + 1}/${MAX_RATE_LIMIT_RETRIES} em ${Math.ceil(waitMs / 1_000)}s.`);
+        await delay(waitMs);
+        continue;
+      }
+      const message = error instanceof Error ? error.message : "Erro desconhecido";
+      console.error(`[AI:${settings.provider}] Falha: ${message}`);
+      if (error instanceof Error && error.name === "AbortError") throw new Error(`A requisicao de IA excedeu ${REQUEST_TIMEOUT_MS / 1_000} segundos.`);
+      if (error instanceof AiProviderError) throw error;
+      throw new Error(`Nao foi possivel consultar ${settings.provider}: ${message}`);
+    } finally {
+      clearTimeout(timeout);
     }
-    const responseBody: unknown = await response.json();
-    if (!isAiResponse(responseBody)) throw new Error(`${settings.provider} retornou resposta em formato invalido.`);
-    const content = responseBody.choices[0]?.message.content.trim();
-    if (!content) throw new Error(`${settings.provider} retornou resposta vazia.`);
-    return content;
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Erro desconhecido";
-    console.error(`[AI:${settings.provider}] Falha: ${message}`);
-    if (error instanceof Error && error.name === "AbortError") throw new Error(`A requisicao de IA excedeu ${REQUEST_TIMEOUT_MS / 1_000} segundos.`);
-    if (error instanceof AiProviderError) throw error;
-    throw new Error(`Nao foi possivel consultar ${settings.provider}: ${message}`);
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw new Error(`Nao foi possivel consultar ${settings.provider}: tentativas esgotadas.`);
 }
